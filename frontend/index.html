@@ -463,7 +463,7 @@
         <div style="overflow-x: auto;">
           <table>
             <thead>
-              <tr><th>Tài khoản</th><th>Email</th><th>Vai trò</th><th>Ngày tham gia</th></tr>
+              <tr><th>Tài khoản</th><th>Họ và tên</th><th>Số điện thoại</th><th>Email</th><th>Địa chỉ</th><th>Vai trò</th><th>Ngày tham gia</th></tr>
             </thead>
             <tbody id="admUsersTable"></tbody>
           </table>
@@ -471,27 +471,40 @@
       </div>
     </section>
 
-    <!-- PAGE 6: AUTH -->
+    <!-- PAGE 6: AUTH & PROFILE -->
     <section id="page-auth" class="page">
-      <div class="card" style="max-width: 420px; margin: 1.5rem auto;">
-        <h2 style="margin-bottom: 0.35rem;">Tài khoản PolyFlash</h2>
+      <div class="card" style="max-width: 480px; margin: 1.5rem auto;">
+        <h2 style="margin-bottom: 0.35rem;">Tài khoản &amp; Thông tin cá nhân</h2>
         <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
-          Đăng nhập hoặc tạo tài khoản mới để đặt vé và quản lý vé của bạn.
+          Đăng nhập, đăng ký hoặc cập nhật thông tin liên hệ nhận vé điện tử.
         </p>
 
         <div class="form-group">
+          <label>Họ và tên</label>
+          <input id="authFullName" type="text" placeholder="VD: Nguyễn Văn An" />
+        </div>
+        <div class="form-group">
+          <label>Số điện thoại</label>
+          <input id="authPhone" type="tel" placeholder="VD: 0901234567" />
+        </div>
+        <div class="form-group">
           <label>Email</label>
           <input id="authEmail" type="email" value="user-demo-01@polyflash.vn" />
+        </div>
+        <div class="form-group">
+          <label>Địa chỉ</label>
+          <input id="authAddress" type="text" placeholder="VD: Quận 1, TP. Hồ Chí Minh" />
         </div>
         <div class="form-group">
           <label>Mật khẩu</label>
           <input id="authPass" type="password" value="PolyFlash@2026" />
         </div>
 
-        <div style="display: flex; gap: 0.75rem;">
+        <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
           <button class="btn btn-primary" style="flex: 1;" onclick="authAction('login')">Đăng nhập</button>
           <button class="btn btn-outline" style="flex: 1;" onclick="authAction('register')">Đăng ký</button>
         </div>
+        <button class="btn btn-outline" style="width: 100%;" onclick="saveProfile()">Lưu thông tin cá nhân</button>
         <div id="authMsg" style="margin-top: 1rem; font-size: 0.85rem; color: var(--accent); text-align: center;"></div>
       </div>
     </section>
@@ -500,7 +513,13 @@
   <script>
     let currentEventId = '11111111-1111-1111-1111-111111111111';
     let currentEventName = 'PolyFlash Live Concert 2026';
-    let currentUser = JSON.parse(localStorage.getItem('pf_user') || 'null') || { userId: 'user-demo-01', email: 'user-demo-01@polyflash.vn' };
+    let currentUser = JSON.parse(localStorage.getItem('pf_user') || 'null') || {
+      userId: 'user-demo-01',
+      fullName: 'Nguyễn Văn An',
+      email: 'user-demo-01@polyflash.vn',
+      phone: '0901234567',
+      address: 'Quận 1, TP. Hồ Chí Minh',
+    };
     let jwtToken = localStorage.getItem('pf_token') || '';
     let allEvents = [];
     let cachedSeats = [];
@@ -509,7 +528,11 @@
     let ttlTimer = null;
 
     function updateAuthUI() {
-      document.getElementById('navAuthBtn').textContent = jwtToken ? currentUser.userId : 'Đăng nhập';
+      document.getElementById('navAuthBtn').textContent = jwtToken ? (currentUser.fullName || currentUser.userId) : 'Đăng nhập';
+      document.getElementById('authFullName').value = currentUser.fullName || '';
+      document.getElementById('authPhone').value = currentUser.phone || '';
+      document.getElementById('authEmail').value = currentUser.email || '';
+      document.getElementById('authAddress').value = currentUser.address || '';
     }
 
     function apiHeaders() {
@@ -796,7 +819,10 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><strong>${u.userId}</strong></td>
+          <td>${u.fullName || '-'}</td>
+          <td>${u.phone || '-'}</td>
           <td>${u.email}</td>
+          <td>${u.address || '-'}</td>
           <td>${u.role}</td>
           <td>${new Date(u.createdAt).toLocaleDateString('vi-VN')}</td>
         `;
@@ -829,13 +855,17 @@
       await loadAdmin();
     }
 
-    // Page 6: Auth
+    // Page 6: Auth & Profile
     async function authAction(type) {
+      const fullName = document.getElementById('authFullName').value.trim();
+      const phone = document.getElementById('authPhone').value.trim();
       const email = document.getElementById('authEmail').value.trim();
+      const address = document.getElementById('authAddress').value.trim();
+
       const res = await fetch(`/auth/${type}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ fullName, phone, email, address }),
       });
       const data = await res.json();
       jwtToken = data.token;
@@ -843,7 +873,25 @@
       localStorage.setItem('pf_token', jwtToken);
       localStorage.setItem('pf_user', JSON.stringify(currentUser));
       updateAuthUI();
-      document.getElementById('authMsg').textContent = `Đã ${type === 'login' ? 'đăng nhập' : 'đăng ký'} thành công với tài khoản ${currentUser.userId}`;
+      document.getElementById('authMsg').textContent = `Đã ${type === 'login' ? 'đăng nhập' : 'đăng ký'} thành công: ${currentUser.fullName || currentUser.userId}`;
+    }
+
+    async function saveProfile() {
+      const fullName = document.getElementById('authFullName').value.trim();
+      const phone = document.getElementById('authPhone').value.trim();
+      const email = document.getElementById('authEmail').value.trim();
+      const address = document.getElementById('authAddress').value.trim();
+
+      const res = await fetch('/users/profile', {
+        method: 'PUT',
+        headers: apiHeaders(),
+        body: JSON.stringify({ userId: currentUser.userId, fullName, phone, email, address }),
+      });
+      const data = await res.json();
+      currentUser = data.user;
+      localStorage.setItem('pf_user', JSON.stringify(currentUser));
+      updateAuthUI();
+      document.getElementById('authMsg').textContent = 'Đã cập nhật thông tin cá nhân thành công!';
     }
 
     updateAuthUI();

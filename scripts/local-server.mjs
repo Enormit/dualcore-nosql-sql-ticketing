@@ -49,8 +49,24 @@ for (const row of rows) {
 // Mock Neon DB Orders & Users
 const orders = [];
 const users = [
-  { userId: 'user-demo-01', email: 'user-demo-01@polyflash.vn', role: 'USER', createdAt: '2026-11-10T08:00:00Z' },
-  { userId: 'admin', email: 'admin@polyflash.vn', role: 'ADMIN', createdAt: '2026-11-01T08:00:00Z' },
+  {
+    userId: 'user-demo-01',
+    fullName: 'Nguyễn Văn An',
+    email: 'user-demo-01@polyflash.vn',
+    phone: '0901234567',
+    address: 'Quận 1, TP. Hồ Chí Minh',
+    role: 'USER',
+    createdAt: '2026-11-10T08:00:00Z',
+  },
+  {
+    userId: 'admin',
+    fullName: 'Quản Trị Viên',
+    email: 'admin@polyflash.vn',
+    phone: '0909999999',
+    address: 'Quận 3, TP. Hồ Chí Minh',
+    role: 'ADMIN',
+    createdAt: '2026-11-01T08:00:00Z',
+  },
 ];
 
 function sendJson(res, status, data) {
@@ -77,16 +93,57 @@ const server = http.createServer(async (req, res) => {
 
   // Auth: Mock Cognito Login / Register
   if (req.method === 'POST' && (url.pathname === '/auth/login' || url.pathname === '/auth/register')) {
-    const { email } = await readBody(req);
-    const userId = email ? email.split('@')[0] : 'user-demo-01';
-    if (!users.find((u) => u.userId === userId)) {
-      users.push({ userId, email: email || `${userId}@polyflash.vn`, role: 'USER', createdAt: new Date().toISOString() });
+    const { email, fullName = '', phone = '', address = '' } = await readBody(req);
+    const cleanEmail = email || 'user-demo-01@polyflash.vn';
+    const userId = cleanEmail.split('@')[0];
+    let user = users.find((u) => u.userId === userId || u.email === cleanEmail);
+
+    if (!user) {
+      user = {
+        userId,
+        fullName: fullName || userId,
+        email: cleanEmail,
+        phone,
+        address,
+        role: 'USER',
+        createdAt: new Date().toISOString(),
+      };
+      users.push(user);
+    } else if (url.pathname === '/auth/register') {
+      if (fullName) user.fullName = fullName;
+      if (phone) user.phone = phone;
+      if (address) user.address = address;
     }
-    const fakeJwt = Buffer.from(JSON.stringify({ sub: userId, email: email || `${userId}@polyflash.vn`, iat: Date.now() })).toString('base64url');
+
+    const fakeJwt = Buffer.from(JSON.stringify({ sub: user.userId, email: user.email, iat: Date.now() })).toString('base64url');
     return sendJson(res, 200, {
       token: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${fakeJwt}.mock-cognito-sig`,
-      user: { userId, email: email || `${userId}@polyflash.vn` },
+      user,
     });
+  }
+
+  // User Profile: Update personal info
+  if (req.method === 'PUT' && url.pathname === '/users/profile') {
+    const { userId, fullName, email, phone, address } = await readBody(req);
+    let user = users.find((u) => u.userId === userId);
+    if (!user) {
+      user = {
+        userId: userId || (email ? email.split('@')[0] : 'user-demo-01'),
+        fullName: fullName || '',
+        email: email || '',
+        phone: phone || '',
+        address: address || '',
+        role: 'USER',
+        createdAt: new Date().toISOString(),
+      };
+      users.push(user);
+    } else {
+      if (fullName !== undefined) user.fullName = fullName;
+      if (email !== undefined) user.email = email;
+      if (phone !== undefined) user.phone = phone;
+      if (address !== undefined) user.address = address;
+    }
+    return sendJson(res, 200, { user });
   }
 
   // Admin: Create event
