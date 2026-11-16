@@ -5,3 +5,7 @@ architecture.md
 .env*.local
 *.env
 plan.md
+
+# Node.js dependencies and build outputs
+node_modules/
+dist/
