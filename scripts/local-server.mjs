@@ -83,7 +83,7 @@ async function readBody(req) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
-  // Serve Frontend SPA
+  // Serve Frontend SPA & Config
   if (req.method === 'GET' && url.pathname === '/') {
     const html = fs.readFileSync(path.resolve(__dirname, '../frontend/index.html'), 'utf-8');
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -91,8 +91,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/config.js') {
+    const js = fs.readFileSync(path.resolve(__dirname, '../frontend/config.js'), 'utf-8');
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+    res.end(js);
+    return;
+  }
+
+  // Normalize /api/v1 prefix so both /api/v1/* and legacy paths work
+  const apiPath = url.pathname.replace(/^\/api\/v1/, '');
+
   // Auth: Mock Cognito Login / Register
-  if (req.method === 'POST' && (url.pathname === '/auth/login' || url.pathname === '/auth/register')) {
+  if (req.method === 'POST' && (apiPath === '/auth/login' || apiPath === '/auth/register')) {
     const { email, fullName = '', phone = '', address = '' } = await readBody(req);
     const cleanEmail = email || 'user-demo-01@polyflash.vn';
     const userId = cleanEmail.split('@')[0];
@@ -123,7 +133,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // User Profile: Update personal info
-  if (req.method === 'PUT' && url.pathname === '/users/profile') {
+  if (req.method === 'PUT' && apiPath === '/users/profile') {
     const { userId, fullName, email, phone, address } = await readBody(req);
     let user = users.find((u) => u.userId === userId);
     if (!user) {
@@ -147,7 +157,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Admin: Create event
-  if (req.method === 'POST' && url.pathname === '/admin/events') {
+  if (req.method === 'POST' && apiPath === '/admin/events') {
     const { name, venue, startTime, saleStatus = 'OPEN' } = await readBody(req);
     const newEvent = {
       id: crypto.randomUUID(),
@@ -162,7 +172,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Admin: Update event status
-  const adminEventMatch = url.pathname.match(/^\/admin\/events\/([^/]+)$/);
+  const adminEventMatch = apiPath.match(/^\/admin\/events\/([^/]+)$/);
   if (req.method === 'PATCH' && adminEventMatch) {
     const ev = events.find((e) => e.id === adminEventMatch[1]);
     if (!ev) return sendJson(res, 404, { error: 'Event not found' });
@@ -172,7 +182,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Admin: List users & orders
-  if (req.method === 'GET' && url.pathname === '/admin/overview') {
+  if (req.method === 'GET' && apiPath === '/admin/overview') {
     const totalRevenue = orders.reduce((sum, o) => sum + o.amount, 0);
     return sendJson(res, 200, {
       stats: { totalEvents: events.length, totalUsers: users.length, totalOrders: orders.length, totalRevenue },
@@ -181,13 +191,13 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
-  // GET /events
-  if (req.method === 'GET' && url.pathname === '/events') {
+  // GET /api/v1/events
+  if (req.method === 'GET' && apiPath === '/events') {
     return sendJson(res, 200, { events });
   }
 
-  // GET /events/:eventId/seats
-  if (req.method === 'GET' && /^\/events\/[^/]+\/seats$/.test(url.pathname)) {
+  // GET /api/v1/events/:eventId/seats
+  if (req.method === 'GET' && /^\/events\/[^/]+\/seats$/.test(apiPath)) {
     const now = Math.floor(Date.now() / 1000);
     const list = Array.from(seats.values()).map((s) => {
       if (s.status === 'HELD' && s.ttl && s.ttl < now) {
@@ -200,8 +210,8 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { seats: list });
   }
 
-  // POST /events/:eventId/seats/:seatId/hold (Seat Locker -> DynamoDB Conditional Write)
-  const holdMatch = url.pathname.match(/^\/events\/([^/]+)\/seats\/([^/]+)\/hold$/);
+  // POST /api/v1/events/:eventId/seats/:seatId/hold
+  const holdMatch = apiPath.match(/^\/events\/([^/]+)\/seats\/([^/]+)\/hold$/);
   if (req.method === 'POST' && holdMatch) {
     const [, eventId, seatId] = holdMatch;
     const seat = seats.get(seatId);
@@ -226,8 +236,8 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
-  // POST /events/:eventId/seats/:seatId/release (Cancel hold -> AVAILABLE)
-  const releaseMatch = url.pathname.match(/^\/events\/([^/]+)\/seats\/([^/]+)\/release$/);
+  // POST /api/v1/events/:eventId/seats/:seatId/release
+  const releaseMatch = apiPath.match(/^\/events\/([^/]+)\/seats\/([^/]+)\/release$/);
   if (req.method === 'POST' && releaseMatch) {
     const [, eventId, seatId] = releaseMatch;
     const seat = seats.get(seatId);
@@ -243,8 +253,8 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { message: 'Seat released', eventId, seatId });
   }
 
-  // POST /events/:eventId/seats/:seatId/pay (SQS FIFO -> Order Processor -> Neon DB ACID)
-  const payMatch = url.pathname.match(/^\/events\/([^/]+)\/seats\/([^/]+)\/pay$/);
+  // POST /api/v1/events/:eventId/seats/:seatId/pay
+  const payMatch = apiPath.match(/^\/events\/([^/]+)\/seats\/([^/]+)\/pay$/);
   if (req.method === 'POST' && payMatch) {
     const [, eventId, seatId] = payMatch;
     const seat = seats.get(seatId);
@@ -278,8 +288,8 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { message: 'Order committed to Neon PostgreSQL', order });
   }
 
-  // GET /tickets (My Tickets from Neon DB)
-  if (req.method === 'GET' && url.pathname === '/tickets') {
+  // GET /api/v1/tickets
+  if (req.method === 'GET' && apiPath === '/tickets') {
     const userId = url.searchParams.get('userId');
     const filtered = userId ? orders.filter((o) => o.userId === userId) : orders;
     return sendJson(res, 200, { tickets: filtered });
