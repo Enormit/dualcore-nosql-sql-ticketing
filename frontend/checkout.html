@@ -48,7 +48,7 @@
 
         <div style="display: flex; gap: 0.75rem;">
           <button id="btnCancelHold" class="btn btn-outline" style="flex: 1;" onclick="cancelHold()">Hủy giữ chỗ</button>
-          <button id="btnMockPay" class="btn btn-primary" style="flex: 2;" onclick="payNow()">Thanh toán ngay</button>
+          <button id="btnMockPay" class="btn btn-primary" style="flex: 2;" onclick="confirmPay()">Thanh toán ngay</button>
         </div>
       </div>
     </div>
@@ -60,8 +60,8 @@
         <h3 style="font-size: 1.15rem; margin-bottom: 0.45rem; color: var(--accent-dark);">Bạn có muốn tiếp tục thanh toán không?</h3>
         <p id="paymentModalDesc" style="color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem;"></p>
         <div style="display: flex; gap: 0.75rem;">
-          <button class="btn btn-outline" style="flex: 1;" onclick="handleModalCancel()">Hủy giữ chỗ</button>
-          <button class="btn btn-primary" style="flex: 1.4;" onclick="handleModalContinue()">Tiếp tục thanh toán</button>
+          <button id="modalCancelBtn" class="btn btn-outline" style="flex: 1;" onclick="handleModalCancel()">Hủy</button>
+          <button id="modalContinueBtn" class="btn btn-primary" style="flex: 1.4;" onclick="handleModalContinue()">Tiếp tục thanh toán</button>
         </div>
       </div>
     </div>
@@ -73,10 +73,13 @@
     PolyFlash.renderNavbar('lobby');
     let activeHold = JSON.parse(sessionStorage.getItem('pf_active_hold') || 'null');
     let pendingTargetUrl = null;
+    let modalMode = 'leave'; // 'pay' | 'leave'
     let ttlTimer = null;
 
-    function openPaymentModal(htmlDesc) {
+    function openPaymentModal(htmlDesc, mode = 'leave') {
+      modalMode = mode;
       document.getElementById('paymentModalDesc').innerHTML = htmlDesc;
+      document.getElementById('modalCancelBtn').textContent = mode === 'pay' ? 'Quay lại' : 'Hủy giữ chỗ';
       document.getElementById('paymentModal').classList.add('open');
     }
 
@@ -84,16 +87,31 @@
       document.getElementById('paymentModal').classList.remove('open');
     }
 
-    function handleModalContinue() {
+    async function handleModalContinue() {
+      const currentMode = modalMode;
       pendingTargetUrl = null;
       closePaymentModal();
+      if (currentMode === 'pay') {
+        await payNow();
+      }
     }
 
     async function handleModalCancel() {
+      const currentMode = modalMode;
       const target = pendingTargetUrl;
       pendingTargetUrl = null;
       closePaymentModal();
-      await cancelHold(target || null);
+      if (currentMode === 'leave') {
+        await cancelHold(target || null);
+      }
+    }
+
+    function confirmPay() {
+      if (!activeHold) return;
+      openPaymentModal(
+        `Xác nhận thanh toán ghế <strong>${activeHold.seatId}</strong> với số tiền <strong>${activeHold.price.toLocaleString('vi-VN')}đ</strong>?`,
+        'pay'
+      );
     }
 
     // Intercept navbar clicks when holding a seat
@@ -102,7 +120,10 @@
       if (link && activeHold) {
         e.preventDefault();
         pendingTargetUrl = link.getAttribute('href');
-        openPaymentModal(`Bạn đang giữ ghế <strong>${activeHold.seatId}</strong> (${activeHold.price.toLocaleString('vi-VN')}đ). Bạn có muốn tiếp tục thanh toán trước khi rời trang không?`);
+        openPaymentModal(
+          `Bạn đang giữ ghế <strong>${activeHold.seatId}</strong> (${activeHold.price.toLocaleString('vi-VN')}đ). Bạn có muốn tiếp tục thanh toán trước khi rời trang không?`,
+          'leave'
+        );
       }
     });
 
@@ -113,8 +134,6 @@
       document.getElementById('coEventName').textContent = activeHold.eventName;
       document.getElementById('coSeatId').textContent = activeHold.seatId;
       document.getElementById('coPrice').textContent = `${activeHold.price.toLocaleString('vi-VN')}đ`;
-
-      openPaymentModal(`Bạn đã giữ thành công ghế <strong>${activeHold.seatId}</strong> (${activeHold.price.toLocaleString('vi-VN')}đ). Bạn có muốn tiếp tục thanh toán ngay không?`);
 
       ttlTimer = setInterval(() => {
         const left = activeHold.expiresAt - Math.floor(Date.now() / 1000);
