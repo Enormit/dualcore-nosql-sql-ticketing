@@ -1,0 +1,9 @@
+aws_region                           = "ap-southeast-1"
+project_name                         = "polyflash"
+environment                          = "prod"
+neon_database_pooled_url             = "postgresql://user:password@ep-example-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+telegram_bot_token                   = "your_telegram_bot_token"
+telegram_chat_id                     = "your_telegram_chat_id"
+seat_hold_ttl_seconds                = 300
+order_processor_reserved_concurrency = 15
+log_retention_days                   = 14

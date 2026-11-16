@@ -13,3 +13,10 @@ dist/
 # Node.js dependencies and build outputs
 node_modules/
 dist/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
