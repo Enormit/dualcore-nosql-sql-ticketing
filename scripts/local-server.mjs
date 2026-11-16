@@ -122,7 +122,7 @@ const server = http.createServer(async (req, res) => {
         createdAt: new Date().toISOString(),
       };
       users.push(user);
-    } else if (url.pathname === '/auth/register') {
+    } else if (apiPath === '/auth/register') {
       if (fullName) user.fullName = fullName;
       if (phone) user.phone = phone;
       if (address) user.address = address;
@@ -135,10 +135,36 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
-  // User Profile: Update personal info
+  // Helper: extract userId from Bearer token if present
+  function getAuthUserId() {
+    const auth = req.headers.authorization || '';
+    if (!auth.startsWith('Bearer ')) return null;
+    try {
+      const payload = auth.slice(7).split('.')[1];
+      return JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8')).sub || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // User Profile: Get own profile
+  if (req.method === 'GET' && apiPath === '/users/profile') {
+    const authSub = getAuthUserId();
+    const targetId = authSub || url.searchParams.get('userId') || 'user-demo-01';
+    const user = users.find((u) => u.userId === targetId);
+    if (!user) return sendJson(res, 404, { error: 'User not found' });
+    return sendJson(res, 200, { user });
+  }
+
+  // User Profile: Update own personal info
   if (req.method === 'PUT' && apiPath === '/users/profile') {
     const { userId, fullName, email, phone, address } = await readBody(req);
-    let user = users.find((u) => u.userId === userId);
+    const authSub = getAuthUserId();
+    if (authSub && userId && authSub !== userId) {
+      return sendJson(res, 403, { error: 'Bạn chỉ có quyền sửa thông tin của chính mình' });
+    }
+    const targetId = authSub || userId;
+    let user = users.find((u) => u.userId === targetId);
     if (!user) {
       user = {
         userId: userId || (email ? email.split('@')[0] : 'user-demo-01'),

@@ -24,6 +24,10 @@ window.PolyFlash = {
     if (token) localStorage.setItem('pf_token', token);
     if (user) localStorage.setItem('pf_user', JSON.stringify(user));
   },
+  logout() {
+    localStorage.removeItem('pf_token');
+    localStorage.removeItem('pf_user');
+  },
   apiHeaders() {
     const h = { 'Content-Type': 'application/json' };
     const token = this.getToken();

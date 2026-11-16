@@ -21,6 +21,7 @@ window.POLYFLASH_API = {
     // 4. Auth & User Profile (Amazon Cognito + Neon PostgreSQL)
     LOGIN: '/api/v1/auth/login',
     REGISTER: '/api/v1/auth/register',
+    GET_PROFILE: (userId) => `/api/v1/users/profile?userId=${encodeURIComponent(userId)}`,
     UPDATE_PROFILE: '/api/v1/users/profile',
 
     // 5. Admin Management
