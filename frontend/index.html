@@ -3,39 +3,39 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PolyFlash — Hybrid NoSQL + SQL Ticketing</title>
+  <title>PolyFlash — Đặt Vé Sự Kiện Trực Tuyến</title>
   <style>
     :root {
       --bg: #E6E6E6;
       --surface: #FFFFFF;
-      --surface-2: #BAC8B1;
+      --surface-soft: #BAC8B1;
       --border: #BAC8B1;
       --text: #404E3B;
       --muted: #6C8480;
       --accent: #7B9669;
-      --accent-hover: #404E3B;
-      --available: #7B9669;
+      --accent-dark: #404E3B;
       --held: #d97706;
-      --sold: #6C8480;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(160deg, #E6E6E6 0%, #BAC8B1 100%);
+      background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       line-height: 1.5;
     }
+
+    /* Navbar */
     .navbar {
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.88);
-      backdrop-filter: blur(12px);
       position: sticky;
       top: 0;
-      z-index: 20;
+      z-index: 30;
+      box-shadow: 0 2px 10px rgba(64, 78, 59, 0.06);
     }
     .navbar-inner {
-      max-width: 1180px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 0.85rem 1.5rem;
       display: flex;
@@ -44,88 +44,145 @@
       gap: 1rem;
       flex-wrap: wrap;
     }
-    .brand { display: flex; align-items: center; gap: 0.65rem; font-weight: 700; font-size: 1.15rem; cursor: pointer; }
-    .brand-badge {
-      background: linear-gradient(135deg, #7B9669, #404E3B);
-      color: #FFFFFF;
-      padding: 0.2rem 0.5rem;
-      border-radius: 6px;
-      font-size: 0.7rem;
-      text-transform: uppercase;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 800;
+      font-size: 1.35rem;
+      color: var(--accent-dark);
+      cursor: pointer;
+      letter-spacing: -0.03em;
     }
-    .nav-links { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .search-bar {
+      flex: 1;
+      max-width: 340px;
+      position: relative;
+    }
+    .search-bar input {
+      width: 100%;
+      padding: 0.5rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #f5f6f4;
+      color: var(--text);
+      font-size: 0.875rem;
+      outline: none;
+    }
+    .search-bar input:focus { border-color: var(--accent); background: #fff; }
+    .nav-links { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
     .nav-btn {
       background: transparent;
       border: 1px solid transparent;
       color: var(--muted);
-      padding: 0.45rem 0.8rem;
+      padding: 0.45rem 0.85rem;
       border-radius: 8px;
-      font-size: 0.85rem;
+      font-size: 0.875rem;
       font-weight: 600;
       cursor: pointer;
+      transition: all 0.15s ease;
     }
     .nav-btn:hover { color: var(--text); background: rgba(186, 200, 177, 0.35); }
-    .nav-btn.active { color: #FFFFFF; background: var(--accent); border-color: var(--accent); }
+    .nav-btn.active { color: #FFFFFF; background: var(--accent); }
 
-    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 1.75rem 1.5rem; }
     .page { display: none; }
     .page.active { display: block; }
 
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: 14px;
       padding: 1.5rem;
-      box-shadow: 0 8px 24px rgba(64, 78, 59, 0.08);
+      box-shadow: 0 4px 16px rgba(64, 78, 59, 0.06);
       margin-bottom: 1.5rem;
     }
     .btn {
       border: none;
       border-radius: 8px;
-      padding: 0.55rem 1rem;
+      padding: 0.6rem 1.1rem;
       font-weight: 600;
       font-size: 0.875rem;
       cursor: pointer;
       transition: all 0.15s ease;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 0.4rem;
     }
-    .btn-primary { background: var(--accent); color: white; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-primary { background: var(--accent); color: #FFFFFF; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
-    .btn-outline:hover { background: var(--surface-2); }
+    .btn-outline:hover { background: rgba(186, 200, 177, 0.35); }
+    .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.78rem; }
 
-    /* Page 1: Lobby */
-    .events-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
-    .event-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
-    .event-cover { height: 120px; padding: 1.25rem; display: flex; align-items: flex-end; justify-content: space-between; }
+    /* Hero Banner */
+    .hero {
+      background: linear-gradient(120deg, #404E3B 0%, #7B9669 100%);
+      color: #FFFFFF;
+      border-radius: 16px;
+      padding: 2.25rem 2rem;
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .hero h1 { font-size: 1.85rem; margin-bottom: 0.4rem; }
+    .hero p { opacity: 0.9; font-size: 0.95rem; max-width: 560px; }
+
+    /* Events Grid */
+    .section-heading { font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; color: var(--accent-dark); }
+    .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+    .event-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; transition: transform 0.15s ease; }
+    .event-card:hover { transform: translateY(-3px); }
+    .event-cover {
+      height: 150px;
+      padding: 1rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      position: relative;
+    }
     .event-body { padding: 1.25rem; flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; }
-    .badge { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
-    .badge-open { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-    .badge-upcoming { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .event-title { font-size: 1.1rem; font-weight: 700; color: var(--accent-dark); margin-bottom: 0.4rem; }
+    .event-info { font-size: 0.85rem; color: var(--muted); display: flex; flex-direction: column; gap: 0.25rem; }
+    .event-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px solid #eef1ec; }
+    .price-tag { font-weight: 700; color: var(--accent); font-size: 0.95rem; }
 
-    /* Page 2: Seat Map */
-    .seat-layout { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1.5rem; }
+    .badge { padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+    .badge-open { background: #FFFFFF; color: var(--accent); }
+    .badge-upcoming { background: rgba(255,255,255,0.9); color: var(--held); }
+    .badge-closed { background: rgba(255,255,255,0.9); color: var(--muted); }
+
+    /* Seat Map */
+    .seat-layout { display: grid; grid-template-columns: 1.7fr 1fr; gap: 1.5rem; }
     @media (max-width: 850px) { .seat-layout { grid-template-columns: 1fr; } }
     .legend { display: flex; gap: 1.25rem; font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem; flex-wrap: wrap; }
     .legend-item { display: flex; align-items: center; gap: 0.45rem; }
-    .dot { width: 10px; height: 10px; border-radius: 3px; }
+    .dot { width: 12px; height: 12px; border-radius: 3px; }
     .stage {
-      background: linear-gradient(180deg, rgba(123, 150, 105, 0.22), rgba(186, 200, 177, 0.15));
+      background: linear-gradient(180deg, rgba(123, 150, 105, 0.25), rgba(186, 200, 177, 0.1));
       border: 1px solid var(--accent);
       border-radius: 10px;
       text-align: center;
       padding: 0.6rem;
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       font-weight: 700;
       letter-spacing: 0.2em;
-      color: var(--text);
+      color: var(--accent-dark);
       margin-bottom: 1.25rem;
     }
-    .row-group { margin-bottom: 1.1rem; }
-    .row-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.45rem; display: flex; justify-content: space-between; }
+    .row-group { margin-bottom: 1.15rem; }
+    .row-label { font-size: 0.8rem; color: var(--muted); font-weight: 600; margin-bottom: 0.45rem; display: flex; justify-content: space-between; }
     .seat-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.5rem; }
     @media (max-width: 600px) { .seat-grid { grid-template-columns: repeat(4, 1fr); } }
     .seat {
@@ -136,21 +193,20 @@
       cursor: pointer;
       font-weight: 600;
       font-size: 0.8rem;
-      color: var(--text);
       transition: transform 0.12s ease;
     }
     .seat:hover:not(:disabled) { transform: translateY(-2px); }
-    .seat.AVAILABLE { background: rgba(123, 150, 105, 0.18); border-color: #7B9669; color: #404E3B; }
-    .seat.HELD { background: rgba(217, 119, 6, 0.15); border-color: #d97706; color: #92400e; cursor: not-allowed; }
-    .seat.SOLD { background: rgba(108, 132, 128, 0.2); border-color: #6C8480; color: #6C8480; cursor: not-allowed; opacity: 0.7; }
-    .seat.selected { outline: 2px solid #404E3B; background: #7B9669; color: #FFFFFF; transform: scale(1.05); }
-    .seat small { display: block; font-size: 0.65rem; font-weight: 400; opacity: 0.85; }
+    .seat.AVAILABLE { background: rgba(123, 150, 105, 0.16); border-color: var(--accent); color: var(--accent-dark); }
+    .seat.HELD { background: rgba(217, 119, 6, 0.15); border-color: var(--held); color: #92400e; cursor: not-allowed; }
+    .seat.SOLD { background: #e5e7eb; border-color: #cbd5e1; color: #9ca3af; cursor: not-allowed; }
+    .seat.selected { background: var(--accent); border-color: var(--accent-dark); color: #FFFFFF; transform: scale(1.05); }
+    .seat small { display: block; font-size: 0.65rem; font-weight: 500; opacity: 0.85; }
 
-    /* Page 3: Checkout */
+    /* Checkout */
     .countdown-box {
-      background: rgba(245, 158, 11, 0.12);
-      border: 1px solid rgba(245, 158, 11, 0.4);
-      color: #fcd34d;
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      color: #92400e;
       padding: 1rem;
       border-radius: 12px;
       text-align: center;
@@ -158,27 +214,28 @@
     }
     .countdown-time { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
     .spinner {
-      width: 20px; height: 20px;
-      border: 3px solid rgba(255,255,255,0.3);
-      border-top-color: #fff;
+      width: 22px; height: 22px;
+      border: 3px solid rgba(123, 150, 105, 0.3);
+      border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       display: inline-block;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Page 4: Tickets */
+    /* Tickets */
     .ticket-card {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 1.5rem;
       flex-wrap: wrap;
-      border-left: 4px solid var(--available);
+      border-left: 5px solid var(--accent);
     }
     .qr-box {
-      background: white;
-      padding: 0.5rem;
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 0.45rem;
       border-radius: 8px;
       width: 88px;
       height: 88px;
@@ -187,163 +244,239 @@
       justify-content: center;
     }
 
-    /* Page 5: Auth */
-    .auth-box { max-width: 420px; margin: 1rem auto; }
+    /* Forms & Tables (Auth + Admin) */
     .form-group { margin-bottom: 1rem; }
-    .form-group label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.35rem; }
-    .form-group input {
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text); margin-bottom: 0.35rem; }
+    .form-group input, .form-group select {
       width: 100%;
-      background: var(--bg);
+      background: #f9fafb;
       border: 1px solid var(--border);
       color: var(--text);
       padding: 0.6rem 0.85rem;
       border-radius: 8px;
       font-size: 0.9rem;
     }
-    .log-box {
-      background: #404E3B;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.75rem;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.78rem;
-      color: #E6E6E6;
-      height: 210px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-    }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; }
+    .stat-val { font-size: 1.5rem; font-weight: 800; color: var(--accent-dark); }
+    .stat-lbl { font-size: 0.8rem; color: var(--muted); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th, td { text-align: left; padding: 0.75rem 0.6rem; border-bottom: 1px solid #eef1ec; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
   </style>
 </head>
 <body>
   <nav class="navbar">
     <div class="navbar-inner">
       <div class="brand" onclick="navigate('lobby')">
+        <span class="brand-dot"></span>
         <span>PolyFlash</span>
-        <span class="brand-badge">NoSQL + SQL</span>
+      </div>
+      <div class="search-bar">
+        <input id="searchInput" type="text" placeholder="Tìm kiếm sự kiện, nghệ sĩ, địa điểm..." oninput="filterEvents()" />
       </div>
       <div class="nav-links">
-        <button class="nav-btn active" data-page="lobby" onclick="navigate('lobby')">1. Sự kiện</button>
-        <button class="nav-btn" data-page="seats" onclick="navigate('seats')">2. Chọn ghế</button>
-        <button class="nav-btn" data-page="checkout" onclick="navigate('checkout')">3. Thanh toán</button>
-        <button class="nav-btn" data-page="tickets" onclick="navigate('tickets')">4. Vé của tôi</button>
-        <button class="nav-btn" data-page="auth" onclick="navigate('auth')" id="navAuthBtn">5. Đăng nhập</button>
+        <button class="nav-btn active" data-page="lobby" onclick="navigate('lobby')">Sự kiện</button>
+        <button class="nav-btn" data-page="tickets" onclick="navigate('tickets')">Vé của tôi</button>
+        <button class="nav-btn" data-page="admin" onclick="navigate('admin')">Quản trị</button>
+        <button class="nav-btn" data-page="auth" onclick="navigate('auth')" id="navAuthBtn">Đăng nhập</button>
       </div>
     </div>
   </nav>
 
   <main class="container">
-    <!-- PAGE 1: LOBBY -->
+    <!-- PAGE 1: EVENTS LOBBY -->
     <section id="page-lobby" class="page active">
-      <div style="margin-bottom: 1.5rem;">
-        <h1 style="font-size: 1.6rem;">Sự kiện & Flash Sale Lobby</h1>
-        <p style="color: var(--muted); font-size: 0.9rem;">Dữ liệu sự kiện từ Neon PostgreSQL — Chọn sự kiện đang mở bán để vào sơ đồ ghế DynamoDB.</p>
+      <div class="hero">
+        <div>
+          <h1>Săn vé sự kiện đỉnh cao cùng PolyFlash</h1>
+          <p>Đặt vé trực tuyến nhanh chóng, giữ chỗ an toàn và nhận vé điện tử tức thì.</p>
+        </div>
+        <button class="btn" style="background: #FFFFFF; color: var(--accent-dark);" onclick="document.getElementById('eventsGrid').scrollIntoView({behavior:'smooth'})">
+          Khám phá ngay
+        </button>
       </div>
-      <div id="eventsGrid" class="events-grid">Đang tải sự kiện...</div>
+
+      <h2 class="section-heading">Sự kiện nổi bật</h2>
+      <div id="eventsGrid" class="events-grid">Đang tải danh sách sự kiện...</div>
     </section>
 
     <!-- PAGE 2: SEAT MAP -->
     <section id="page-seats" class="page">
+      <div style="margin-bottom: 1rem;">
+        <button class="btn btn-outline btn-sm" onclick="navigate('lobby')">← Quay lại danh sách sự kiện</button>
+      </div>
       <div class="seat-layout">
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
             <div>
-              <h2 style="font-size: 1.25rem;">Interactive Seat Map (DynamoDB)</h2>
-              <p style="color: var(--muted); font-size: 0.85rem;">Tự động làm mới mỗi 2.5s • Conditional Write chống trùng ghế</p>
+              <h2 id="seatEventTitle" style="font-size: 1.25rem;">Chọn vị trí ghế</h2>
+              <p style="color: var(--muted); font-size: 0.85rem;">Sơ đồ cập nhật trực tiếp theo thời gian thực</p>
             </div>
-            <div style="display: flex; gap: 0.5rem;">
-              <button class="btn btn-outline" onclick="simulateRush()">⚡ Flash Sale Rush</button>
-              <button class="btn btn-primary" onclick="loadSeats()">Làm mới sơ đồ</button>
-            </div>
+            <button class="btn btn-outline btn-sm" onclick="loadSeats()">Làm mới sơ đồ</button>
           </div>
 
           <div class="legend">
-            <div class="legend-item"><span class="dot" style="background: var(--available)"></span> Còn trống (AVAILABLE)</div>
-            <div class="legend-item"><span class="dot" style="background: var(--held)"></span> Đang giữ 5p (HELD)</div>
-            <div class="legend-item"><span class="dot" style="background: var(--sold)"></span> Đã bán (SOLD)</div>
+            <div class="legend-item"><span class="dot" style="background: var(--accent)"></span> Ghế trống</div>
+            <div class="legend-item"><span class="dot" style="background: var(--held)"></span> Đang có người giữ</div>
+            <div class="legend-item"><span class="dot" style="background: #cbd5e1"></span> Đã bán</div>
           </div>
 
-          <div class="stage">SÂN KHẤU CHÍNH / MAIN STAGE</div>
+          <div class="stage">SÂN KHẤU / STAGE</div>
           <div id="seatRows">Đang tải sơ đồ ghế...</div>
         </div>
 
-        <div class="card">
-          <h3 style="margin-bottom: 0.75rem;">Ghế đang chọn</h3>
-          <div id="selectedSeatBox" style="color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem;">
-            Chưa chọn ghế nào. Hãy bấm vào một ghế màu xanh.
+        <div class="card" style="height: fit-content;">
+          <h3 style="margin-bottom: 0.75rem;">Thông tin đặt vé</h3>
+          <div id="selectedSeatBox" style="color: var(--muted); font-size: 0.9rem; margin-bottom: 1.25rem; padding: 1rem; background: #f8f9f7; border-radius: 10px;">
+            Vui lòng chọn một ghế còn trống trên sơ đồ.
           </div>
-          <button id="btnHoldSeat" class="btn btn-primary" style="width: 100%; justify-content: center; margin-bottom: 1.25rem;" disabled onclick="holdSelectedSeat()">
-            Giữ chỗ ngay (Seat Locker)
+          <button id="btnHoldSeat" class="btn btn-primary" style="width: 100%; padding: 0.75rem;" disabled onclick="holdSelectedSeat()">
+            Tiếp tục đặt vé
           </button>
-
-          <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--muted);">Nhật ký NoSQL Real-time</h4>
-          <div id="log" class="log-box">Sẵn sàng.</div>
         </div>
       </div>
     </section>
 
     <!-- PAGE 3: CHECKOUT -->
     <section id="page-checkout" class="page">
-      <div class="card" style="max-width: 560px; margin: 0 auto;">
-        <h2 style="margin-bottom: 0.5rem;">Giữ chỗ & Xác nhận Thanh toán</h2>
+      <div class="card" style="max-width: 540px; margin: 0 auto;">
+        <h2 style="margin-bottom: 0.4rem;">Xác nhận &amp; Thanh toán</h2>
         <p style="color: var(--muted); font-size: 0.88rem; margin-bottom: 1.25rem;">
-          Ghế đang được khóa tạm trên DynamoDB (TTL 5 phút). Thanh toán để đẩy đơn qua SQS FIFO vào Neon DB.
+          Vui lòng hoàn tất thanh toán trước khi hết thời gian giữ chỗ.
         </p>
 
         <div id="checkoutEmpty" style="color: var(--muted); text-align: center; padding: 2rem 0;">
-          Bạn chưa giữ ghế nào. <button class="btn btn-outline" style="margin-left: 0.5rem;" onclick="navigate('seats')">Quay lại chọn ghế</button>
+          Bạn chưa chọn ghế nào. <button class="btn btn-outline btn-sm" style="margin-left: 0.5rem;" onclick="navigate('lobby')">Xem sự kiện</button>
         </div>
 
         <div id="checkoutActive" style="display: none;">
           <div class="countdown-box">
-            <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Thời gian giữ ghế còn lại (DynamoDB TTL)</div>
+            <div style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em;">Thời gian hoàn tất đặt vé</div>
             <div id="ttlCountdown" class="countdown-time">05:00</div>
           </div>
 
-          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="background: #f8f9f7; border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
               <span style="color: var(--muted);">Sự kiện:</span>
-              <strong>PolyFlash Live Concert 2026</strong>
+              <strong id="coEventName">PolyFlash Live Concert 2026</strong>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-              <span style="color: var(--muted);">Mã ghế:</span>
+              <span style="color: var(--muted);">Vị trí ghế:</span>
               <strong id="coSeatId">-</strong>
             </div>
             <div style="display: flex; justify-content: space-between;">
               <span style="color: var(--muted);">Tổng thanh toán:</span>
-              <strong id="coPrice" style="color: var(--available);">-</strong>
+              <strong id="coPrice" style="color: var(--accent); font-size: 1.1rem;">-</strong>
             </div>
           </div>
 
-          <div id="sqsProcessing" style="display: none; text-align: center; padding: 1rem; color: #a5b4fc;">
+          <div id="sqsProcessing" style="display: none; text-align: center; padding: 1rem; color: var(--accent-dark);">
             <span class="spinner"></span>
-            <div style="margin-top: 0.5rem; font-size: 0.9rem;">Đang xử lý giao dịch qua hàng đợi SQS FIFO &amp; ghi ACID vào Neon DB...</div>
+            <div style="margin-top: 0.5rem; font-size: 0.9rem;">Đang xác nhận thanh toán và xuất vé điện tử...</div>
           </div>
 
-          <button id="btnMockPay" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.75rem;" onclick="payNow()">
-            Thanh toán giả lập (Mock Pay)
-          </button>
+          <div style="display: flex; gap: 0.75rem;">
+            <button id="btnCancelHold" class="btn btn-outline" style="flex: 1;" onclick="cancelHold()">
+              Hủy giữ chỗ
+            </button>
+            <button id="btnMockPay" class="btn btn-primary" style="flex: 2;" onclick="payNow()">
+              Thanh toán ngay
+            </button>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- PAGE 4: MY TICKETS -->
     <section id="page-tickets" class="page">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
         <div>
-          <h1 style="font-size: 1.5rem;">Vé của tôi &amp; Lịch sử Giao dịch (Neon SQL)</h1>
-          <p style="color: var(--muted); font-size: 0.9rem;">Dữ liệu đơn hàng &amp; thanh toán được lưu trữ bền vững chuẩn ACID trong Neon PostgreSQL.</p>
+          <h2 class="section-heading" style="margin-bottom: 0.2rem;">Vé của tôi</h2>
+          <p style="color: var(--muted); font-size: 0.9rem;">Xuất trình mã QR tại cổng soát vé để tham gia sự kiện.</p>
         </div>
-        <button class="btn btn-outline" onclick="loadTickets()">Làm mới</button>
+        <button class="btn btn-outline btn-sm" onclick="loadTickets()">Làm mới</button>
       </div>
-      <div id="ticketsList">Đang tải danh sách vé...</div>
+      <div id="ticketsList">Đang tải vé...</div>
     </section>
 
-    <!-- PAGE 5: AUTH (COGNITO) -->
+    <!-- PAGE 5: ADMIN -->
+    <section id="page-admin" class="page">
+      <h2 class="section-heading">Bảng điều khiển Quản trị (Admin)</h2>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div id="admEventsCount" class="stat-val">0</div>
+          <div class="stat-lbl">Tổng sự kiện</div>
+        </div>
+        <div class="stat-card">
+          <div id="admUsersCount" class="stat-val">0</div>
+          <div class="stat-lbl">Người dùng</div>
+        </div>
+        <div class="stat-card">
+          <div id="admOrdersCount" class="stat-val">0</div>
+          <div class="stat-lbl">Vé đã bán</div>
+        </div>
+        <div class="stat-card">
+          <div id="admRevenue" class="stat-val" style="color: var(--accent);">0đ</div>
+          <div class="stat-lbl">Tổng doanh thu</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 1.5rem;">
+        <div class="card" style="height: fit-content;">
+          <h3 style="margin-bottom: 1rem;">Tạo sự kiện mới</h3>
+          <div class="form-group">
+            <label>Tên sự kiện</label>
+            <input id="admEvName" type="text" placeholder="VD: Acoustic Night 2026" />
+          </div>
+          <div class="form-group">
+            <label>Địa điểm</label>
+            <input id="admEvVenue" type="text" placeholder="VD: Nhà hát Hòa Bình, TP.HCM" />
+          </div>
+          <div class="form-group">
+            <label>Trạng thái mở bán</label>
+            <select id="admEvStatus">
+              <option value="OPEN">Đang mở bán</option>
+              <option value="UPCOMING">Sắp mở bán</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" style="width: 100%;" onclick="adminCreateEvent()">+ Thêm sự kiện</button>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom: 1rem;">Quản lý Sự kiện</h3>
+          <div style="overflow-x: auto;">
+            <table>
+              <thead>
+                <tr><th>Tên sự kiện</th><th>Địa điểm</th><th>Trạng thái</th><th>Hành động</th></tr>
+              </thead>
+              <tbody id="admEventsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom: 1rem;">Danh sách Người dùng</h3>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr><th>Tài khoản</th><th>Email</th><th>Vai trò</th><th>Ngày tham gia</th></tr>
+            </thead>
+            <tbody id="admUsersTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 6: AUTH -->
     <section id="page-auth" class="page">
-      <div class="card auth-box">
-        <h2 style="margin-bottom: 0.4rem;">Xác thực Người dùng (Amazon Cognito)</h2>
+      <div class="card" style="max-width: 420px; margin: 1.5rem auto;">
+        <h2 style="margin-bottom: 0.35rem;">Tài khoản PolyFlash</h2>
         <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
-          Đăng nhập để nhận JWT Token đính kèm vào Header <code>Authorization: Bearer &lt;token&gt;</code>.
+          Đăng nhập hoặc tạo tài khoản mới để đặt vé và quản lý vé của bạn.
         </p>
 
         <div class="form-group">
@@ -356,27 +489,27 @@
         </div>
 
         <div style="display: flex; gap: 0.75rem;">
-          <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="authAction('login')">Đăng nhập</button>
-          <button class="btn btn-outline" style="flex: 1; justify-content: center;" onclick="authAction('register')">Đăng ký</button>
+          <button class="btn btn-primary" style="flex: 1;" onclick="authAction('login')">Đăng nhập</button>
+          <button class="btn btn-outline" style="flex: 1;" onclick="authAction('register')">Đăng ký</button>
         </div>
-
-        <div id="jwtPreview" style="margin-top: 1.25rem; font-size: 0.75rem; color: var(--muted); word-break: break-all; display: none;"></div>
+        <div id="authMsg" style="margin-top: 1rem; font-size: 0.85rem; color: var(--accent); text-align: center;"></div>
       </div>
     </section>
   </main>
 
   <script>
-    const EVENT_ID = '11111111-1111-1111-1111-111111111111';
+    let currentEventId = '11111111-1111-1111-1111-111111111111';
+    let currentEventName = 'PolyFlash Live Concert 2026';
     let currentUser = JSON.parse(localStorage.getItem('pf_user') || 'null') || { userId: 'user-demo-01', email: 'user-demo-01@polyflash.vn' };
     let jwtToken = localStorage.getItem('pf_token') || '';
+    let allEvents = [];
     let cachedSeats = [];
     let selectedSeat = null;
     let activeHold = null;
     let ttlTimer = null;
 
     function updateAuthUI() {
-      const btn = document.getElementById('navAuthBtn');
-      btn.textContent = jwtToken ? `5. ${currentUser.userId}` : '5. Đăng nhập';
+      document.getElementById('navAuthBtn').textContent = jwtToken ? currentUser.userId : 'Đăng nhập';
     }
 
     function apiHeaders() {
@@ -389,52 +522,73 @@
       document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
       document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
       document.getElementById(`page-${page}`).classList.add('active');
-      document.querySelector(`.nav-btn[data-page="${page}"]`).classList.add('active');
+      const navBtn = document.querySelector(`.nav-btn[data-page="${page}"]`);
+      if (navBtn) navBtn.classList.add('active');
 
       if (page === 'lobby') loadEvents();
       if (page === 'seats') loadSeats();
       if (page === 'tickets') loadTickets();
-    }
-
-    function appendLog(msg) {
-      const logEl = document.getElementById('log');
-      const time = new Date().toLocaleTimeString();
-      logEl.textContent = `[${time}] ${msg}\n` + logEl.textContent;
+      if (page === 'admin') loadAdmin();
     }
 
     // Page 1: Events
     async function loadEvents() {
       const res = await fetch('/events', { headers: apiHeaders() });
       const data = await res.json();
+      allEvents = data.events || [];
+      renderEvents(allEvents);
+    }
+
+    function filterEvents() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      renderEvents(allEvents.filter((e) => e.name.toLowerCase().includes(q) || e.venue.toLowerCase().includes(q)));
+    }
+
+    function renderEvents(list) {
       const grid = document.getElementById('eventsGrid');
       grid.innerHTML = '';
 
-      for (const ev of data.events) {
+      for (const ev of list) {
         const isOpen = ev.saleStatus === 'OPEN';
+        const statusText = isOpen ? 'Đang mở bán' : ev.saleStatus === 'UPCOMING' ? 'Sắp mở bán' : 'Ngừng bán';
+        const badgeCls = isOpen ? 'badge-open' : ev.saleStatus === 'UPCOMING' ? 'badge-upcoming' : 'badge-closed';
+
         const card = document.createElement('div');
         card.className = 'card event-card';
         card.innerHTML = `
           <div class="event-cover" style="background: ${ev.bannerColor}">
-            <span class="badge ${isOpen ? 'badge-open' : 'badge-upcoming'}">${isOpen ? 'Đang mở bán' : 'Sắp mở bán'}</span>
+            <span class="badge ${badgeCls}">${statusText}</span>
           </div>
           <div class="event-body">
             <div>
-              <h3 style="font-size: 1.15rem; margin-bottom: 0.3rem;">${ev.name}</h3>
-              <p style="color: var(--muted); font-size: 0.85rem;">📍 ${ev.venue}</p>
-              <p style="color: var(--muted); font-size: 0.85rem;">🕒 ${new Date(ev.startTime).toLocaleString('vi-VN')}</p>
+              <div class="event-title">${ev.name}</div>
+              <div class="event-info">
+                <span>📍 ${ev.venue}</span>
+                <span>📅 ${new Date(ev.startTime).toLocaleString('vi-VN')}</span>
+              </div>
             </div>
-            <button class="btn ${isOpen ? 'btn-primary' : 'btn-outline'}" ${isOpen ? '' : 'disabled'} onclick="navigate('seats')">
-              ${isOpen ? 'Chọn ghế ngay →' : 'Mở bán sau 01:00:00'}
-            </button>
+            <div class="event-footer">
+              <span class="price-tag">Từ 500.000đ</span>
+              <button class="btn ${isOpen ? 'btn-primary' : 'btn-outline'} btn-sm" ${isOpen ? '' : 'disabled'} onclick="openEventSeats('${ev.id}', '${ev.name.replace(/'/g, "\\'")}')">
+                ${isOpen ? 'Đặt vé ngay' : 'Chưa mở bán'}
+              </button>
+            </div>
           </div>
         `;
         grid.appendChild(card);
       }
     }
 
+    function openEventSeats(eventId, eventName) {
+      currentEventId = eventId;
+      currentEventName = eventName;
+      document.getElementById('seatEventTitle').textContent = eventName;
+      navigate('seats');
+    }
+
     // Page 2: Seat Map
     async function loadSeats() {
-      const res = await fetch(`/events/${EVENT_ID}/seats`, { headers: apiHeaders() });
+      const res = await fetch(`/events/${currentEventId}/seats`, { headers: apiHeaders() });
       const data = await res.json();
       cachedSeats = data.seats || [];
       renderSeats(cachedSeats);
@@ -448,12 +602,12 @@
       }
       const container = document.getElementById('seatRows');
       container.innerHTML = '';
-      const labels = { A: 'Hạng VIP (1.200.000đ)', B: 'Hạng Standard (800.000đ)', C: 'Hạng Economy (500.000đ)' };
+      const labels = { A: 'Hạng VIP — 1.200.000đ', B: 'Hạng Standard — 800.000đ', C: 'Hạng Economy — 500.000đ' };
 
       for (const [key, list] of Object.entries(rows)) {
         const group = document.createElement('div');
         group.className = 'row-group';
-        group.innerHTML = `<div class="row-label"><span>Hàng ${key}</span><span>${labels[key]}</span></div>`;
+        group.innerHTML = `<div class="row-label"><span>Khu vực ${key}</span><span>${labels[key]}</span></div>`;
         const grid = document.createElement('div');
         grid.className = 'seat-grid';
 
@@ -462,7 +616,8 @@
           const isSel = selectedSeat && selectedSeat.seatId === seat.seatId && seat.status === 'AVAILABLE';
           btn.className = `seat ${seat.status} ${isSel ? 'selected' : ''}`;
           btn.disabled = seat.status !== 'AVAILABLE';
-          btn.innerHTML = `${seat.seatId}<small>${seat.status}</small>`;
+          const label = seat.status === 'AVAILABLE' ? 'Trống' : seat.status === 'HELD' ? 'Đang giữ' : 'Đã bán';
+          btn.innerHTML = `${seat.seatId}<small>${label}</small>`;
           btn.onclick = () => selectSeat(seat);
           grid.appendChild(btn);
         }
@@ -474,8 +629,8 @@
     function selectSeat(seat) {
       selectedSeat = seat;
       document.getElementById('selectedSeatBox').innerHTML = `
-        Ghế: <strong>${seat.seatId}</strong> (${seat.tier})<br/>
-        Giá vé: <strong style="color: var(--available)">${seat.price.toLocaleString('vi-VN')}đ</strong>
+        <div style="margin-bottom: 0.35rem;">Ghế đã chọn: <strong>${seat.seatId}</strong> (${seat.tier})</div>
+        <div>Giá vé: <strong style="color: var(--accent); font-size: 1.05rem;">${seat.price.toLocaleString('vi-VN')}đ</strong></div>
       `;
       document.getElementById('btnHoldSeat').disabled = false;
       renderSeats(cachedSeats);
@@ -483,41 +638,22 @@
 
     async function holdSelectedSeat() {
       if (!selectedSeat) return;
-      const t0 = performance.now();
-      const res = await fetch(`/events/${EVENT_ID}/seats/${selectedSeat.seatId}/hold`, {
+      const res = await fetch(`/events/${currentEventId}/seats/${selectedSeat.seatId}/hold`, {
         method: 'POST',
         headers: apiHeaders(),
         body: JSON.stringify({ userId: currentUser.userId, price: selectedSeat.price }),
       });
-      const ms = Math.round(performance.now() - t0);
       const data = await res.json();
 
       if (res.status === 202) {
-        appendLog(`✅ Giữ ghế ${selectedSeat.seatId} thành công (${ms}ms) -> TTL 5p`);
         activeHold = { seatId: selectedSeat.seatId, price: selectedSeat.price, expiresAt: data.holdExpiresAt };
         selectedSeat = null;
         startCheckout();
         navigate('checkout');
       } else {
-        appendLog(`⚠️ Ghế ${selectedSeat.seatId}: ${data.error} (${res.status}, ${ms}ms)`);
+        alert(data.error || 'Ghế vừa có người khác chọn, vui lòng chọn ghế khác.');
         await loadSeats();
       }
-    }
-
-    async function simulateRush() {
-      const avail = cachedSeats.find((s) => s.status === 'AVAILABLE');
-      if (!avail) return appendLog('⚠️ Không còn ghế trống để test Flash Sale!');
-      appendLog(`⚡ Mô phỏng 5 user tranh ghế ${avail.seatId} đồng thời...`);
-      await Promise.all([1, 2, 3, 4, 5].map(async (i) => {
-        const t0 = performance.now();
-        const res = await fetch(`/events/${EVENT_ID}/seats/${avail.seatId}/hold`, {
-          method: 'POST',
-          headers: apiHeaders(),
-          body: JSON.stringify({ userId: `flash-user-${i}`, price: avail.price }),
-        });
-        appendLog(`${res.status === 202 ? '✅' : '⚠️'} flash-user-${i} -> ${res.status} (${Math.round(performance.now() - t0)}ms)`);
-      }));
-      await loadSeats();
     }
 
     // Page 3: Checkout
@@ -525,6 +661,7 @@
       if (!activeHold) return;
       document.getElementById('checkoutEmpty').style.display = 'none';
       document.getElementById('checkoutActive').style.display = 'block';
+      document.getElementById('coEventName').textContent = currentEventName;
       document.getElementById('coSeatId').textContent = activeHold.seatId;
       document.getElementById('coPrice').textContent = `${activeHold.price.toLocaleString('vi-VN')}đ`;
 
@@ -534,7 +671,7 @@
         if (left <= 0) {
           clearInterval(ttlTimer);
           activeHold = null;
-          alert('Hết thời gian giữ ghế 5 phút (DynamoDB TTL)! Vui lòng chọn lại.');
+          alert('Đã hết thời gian giữ chỗ. Vui lòng chọn lại ghế.');
           navigate('seats');
           return;
         }
@@ -544,18 +681,34 @@
       }, 1000);
     }
 
+    async function cancelHold() {
+      if (!activeHold) return;
+      await fetch(`/events/${currentEventId}/seats/${activeHold.seatId}/release`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ userId: currentUser.userId }),
+      });
+      clearInterval(ttlTimer);
+      activeHold = null;
+      document.getElementById('checkoutEmpty').style.display = 'block';
+      document.getElementById('checkoutActive').style.display = 'none';
+      navigate('seats');
+    }
+
     async function payNow() {
       if (!activeHold) return;
       document.getElementById('btnMockPay').disabled = true;
+      document.getElementById('btnCancelHold').disabled = true;
       document.getElementById('sqsProcessing').style.display = 'block';
 
-      const res = await fetch(`/events/${EVENT_ID}/seats/${activeHold.seatId}/pay`, {
+      const res = await fetch(`/events/${currentEventId}/seats/${activeHold.seatId}/pay`, {
         method: 'POST',
         headers: apiHeaders(),
         body: JSON.stringify({ userId: currentUser.userId }),
       });
 
       document.getElementById('btnMockPay').disabled = false;
+      document.getElementById('btnCancelHold').disabled = false;
       document.getElementById('sqsProcessing').style.display = 'none';
 
       if (res.ok) {
@@ -577,7 +730,7 @@
       const list = document.getElementById('ticketsList');
 
       if (!data.tickets || data.tickets.length === 0) {
-        list.innerHTML = `<div class="card" style="color: var(--muted); text-align: center;">Chưa có vé nào được thanh toán cho tài khoản <strong>${currentUser.userId}</strong>.</div>`;
+        list.innerHTML = `<div class="card" style="color: var(--muted); text-align: center;">Bạn chưa có vé nào cho tài khoản <strong>${currentUser.userId}</strong>.</div>`;
         return;
       }
 
@@ -587,17 +740,17 @@
         card.className = 'card ticket-card';
         card.innerHTML = `
           <div>
-            <div style="font-size: 0.78rem; color: var(--available); font-weight: 700;">✔ ĐÃ THANH TOÁN (ACID COMMITTED)</div>
+            <div style="font-size: 0.78rem; color: var(--accent); font-weight: 700;">✔ VÉ HỢP LỆ</div>
             <h3 style="margin: 0.25rem 0;">${t.eventName}</h3>
-            <p style="color: var(--muted); font-size: 0.85rem;">
-              Mã đơn: <code>${t.orderId}</code> • Ghế: <strong>${t.seatId}</strong> (${t.tier})<br/>
-              Số tiền: <strong>${t.amount.toLocaleString('vi-VN')}đ</strong> • Lúc: ${new Date(t.paidAt).toLocaleString('vi-VN')}
+            <p style="color: var(--muted); font-size: 0.88rem;">
+              Mã đơn hàng: <strong>${t.orderId}</strong> • Ghế: <strong>${t.seatId}</strong> (${t.tier})<br/>
+              Giá vé: <strong>${t.amount.toLocaleString('vi-VN')}đ</strong> • Ngày mua: ${new Date(t.paidAt).toLocaleString('vi-VN')}
             </p>
           </div>
-          <div class="qr-box" title="QR Check-in: ${t.orderId}">
+          <div class="qr-box" title="Mã QR Check-in: ${t.orderId}">
             <svg viewBox="0 0 36 36" width="72" height="72">
               <rect width="36" height="36" fill="#fff"/>
-              <path d="M2 2h10v10H2zM4 4v6h6V4zM6 6h2v2H6zM24 2h10v10H24zM26 4v6h6V4zM28 6h2v2h-2zM2 24h10v10H2zM4 26v6h6v-6zM6 28h2v2H6zM15 4h2v4h-2zM19 6h2v6h-2zM15 14h6v6h-6zM24 16h4v2h-4zM30 16h4v6h-4zM16 24h4v4h-4zM22 24h6v2h-6zM24 28h8v4h-8z" fill="#090d16"/>
+              <path d="M2 2h10v10H2zM4 4v6h6V4zM6 6h2v2H6zM24 2h10v10H24zM26 4v6h6V4zM28 6h2v2h-2zM2 24h10v10H2zM4 26v6h6v-6zM6 28h2v2H6zM15 4h2v4h-2zM19 6h2v6h-2zM15 14h6v6h-6zM24 16h4v2h-4zM30 16h4v6h-4zM16 24h4v4h-4zM22 24h6v2h-6zM24 28h8v4h-8z" fill="#404E3B"/>
             </svg>
           </div>
         `;
@@ -605,7 +758,78 @@
       }
     }
 
-    // Page 5: Auth
+    // Page 5: Admin
+    async function loadAdmin() {
+      const [evRes, ovRes] = await Promise.all([
+        fetch('/events', { headers: apiHeaders() }),
+        fetch('/admin/overview', { headers: apiHeaders() }),
+      ]);
+      const evData = await evRes.json();
+      const ovData = await ovRes.json();
+
+      document.getElementById('admEventsCount').textContent = ovData.stats.totalEvents;
+      document.getElementById('admUsersCount').textContent = ovData.stats.totalUsers;
+      document.getElementById('admOrdersCount').textContent = ovData.stats.totalOrders;
+      document.getElementById('admRevenue').textContent = `${ovData.stats.totalRevenue.toLocaleString('vi-VN')}đ`;
+
+      const evBody = document.getElementById('admEventsTable');
+      evBody.innerHTML = '';
+      for (const ev of evData.events) {
+        const nextStatus = ev.saleStatus === 'OPEN' ? 'UPCOMING' : 'OPEN';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${ev.name}</strong></td>
+          <td>${ev.venue}</td>
+          <td>${ev.saleStatus === 'OPEN' ? 'Đang mở bán' : 'Sắp mở bán'}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" onclick="adminToggleEvent('${ev.id}', '${nextStatus}')">
+              ${ev.saleStatus === 'OPEN' ? 'Tạm đóng' : 'Mở bán'}
+            </button>
+          </td>
+        `;
+        evBody.appendChild(tr);
+      }
+
+      const usrBody = document.getElementById('admUsersTable');
+      usrBody.innerHTML = '';
+      for (const u of ovData.users) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${u.userId}</strong></td>
+          <td>${u.email}</td>
+          <td>${u.role}</td>
+          <td>${new Date(u.createdAt).toLocaleDateString('vi-VN')}</td>
+        `;
+        usrBody.appendChild(tr);
+      }
+    }
+
+    async function adminCreateEvent() {
+      const name = document.getElementById('admEvName').value.trim();
+      const venue = document.getElementById('admEvVenue').value.trim();
+      const saleStatus = document.getElementById('admEvStatus').value;
+      if (!name) return alert('Vui lòng nhập tên sự kiện');
+
+      await fetch('/admin/events', {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ name, venue, saleStatus }),
+      });
+      document.getElementById('admEvName').value = '';
+      document.getElementById('admEvVenue').value = '';
+      await loadAdmin();
+    }
+
+    async function adminToggleEvent(eventId, saleStatus) {
+      await fetch(`/admin/events/${eventId}`, {
+        method: 'PATCH',
+        headers: apiHeaders(),
+        body: JSON.stringify({ saleStatus }),
+      });
+      await loadAdmin();
+    }
+
+    // Page 6: Auth
     async function authAction(type) {
       const email = document.getElementById('authEmail').value.trim();
       const res = await fetch(`/auth/${type}`, {
@@ -619,10 +843,7 @@
       localStorage.setItem('pf_token', jwtToken);
       localStorage.setItem('pf_user', JSON.stringify(currentUser));
       updateAuthUI();
-
-      const preview = document.getElementById('jwtPreview');
-      preview.style.display = 'block';
-      preview.innerHTML = `<strong>JWT Token đã lưu:</strong><br/>${jwtToken}`;
+      document.getElementById('authMsg').textContent = `Đã ${type === 'login' ? 'đăng nhập' : 'đăng ký'} thành công với tài khoản ${currentUser.userId}`;
     }
 
     updateAuthUI();

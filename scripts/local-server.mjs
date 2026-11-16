@@ -46,8 +46,12 @@ for (const row of rows) {
   }
 }
 
-// Mock Neon DB Orders & Payments
+// Mock Neon DB Orders & Users
 const orders = [];
+const users = [
+  { userId: 'user-demo-01', email: 'user-demo-01@polyflash.vn', role: 'USER', createdAt: '2026-11-10T08:00:00Z' },
+  { userId: 'admin', email: 'admin@polyflash.vn', role: 'ADMIN', createdAt: '2026-11-01T08:00:00Z' },
+];
 
 function sendJson(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -75,10 +79,48 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && (url.pathname === '/auth/login' || url.pathname === '/auth/register')) {
     const { email } = await readBody(req);
     const userId = email ? email.split('@')[0] : 'user-demo-01';
+    if (!users.find((u) => u.userId === userId)) {
+      users.push({ userId, email: email || `${userId}@polyflash.vn`, role: 'USER', createdAt: new Date().toISOString() });
+    }
     const fakeJwt = Buffer.from(JSON.stringify({ sub: userId, email: email || `${userId}@polyflash.vn`, iat: Date.now() })).toString('base64url');
     return sendJson(res, 200, {
       token: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${fakeJwt}.mock-cognito-sig`,
       user: { userId, email: email || `${userId}@polyflash.vn` },
+    });
+  }
+
+  // Admin: Create event
+  if (req.method === 'POST' && url.pathname === '/admin/events') {
+    const { name, venue, startTime, saleStatus = 'OPEN' } = await readBody(req);
+    const newEvent = {
+      id: crypto.randomUUID(),
+      name: name || 'Sự kiện mới',
+      venue: venue || 'TP. Hồ Chí Minh',
+      startTime: startTime || new Date(Date.now() + 86400000 * 7).toISOString(),
+      saleStatus,
+      bannerColor: 'linear-gradient(135deg, #7B9669, #404E3B)',
+    };
+    events.unshift(newEvent);
+    return sendJson(res, 201, { event: newEvent });
+  }
+
+  // Admin: Update event status
+  const adminEventMatch = url.pathname.match(/^\/admin\/events\/([^/]+)$/);
+  if (req.method === 'PATCH' && adminEventMatch) {
+    const ev = events.find((e) => e.id === adminEventMatch[1]);
+    if (!ev) return sendJson(res, 404, { error: 'Event not found' });
+    const { saleStatus } = await readBody(req);
+    if (saleStatus) ev.saleStatus = saleStatus;
+    return sendJson(res, 200, { event: ev });
+  }
+
+  // Admin: List users & orders
+  if (req.method === 'GET' && url.pathname === '/admin/overview') {
+    const totalRevenue = orders.reduce((sum, o) => sum + o.amount, 0);
+    return sendJson(res, 200, {
+      stats: { totalEvents: events.length, totalUsers: users.length, totalOrders: orders.length, totalRevenue },
+      users,
+      orders,
     });
   }
 
@@ -125,6 +167,23 @@ const server = http.createServer(async (req, res) => {
       price: seat.price,
       holdExpiresAt: seat.ttl,
     });
+  }
+
+  // POST /events/:eventId/seats/:seatId/release (Cancel hold -> AVAILABLE)
+  const releaseMatch = url.pathname.match(/^\/events\/([^/]+)\/seats\/([^/]+)\/release$/);
+  if (req.method === 'POST' && releaseMatch) {
+    const [, eventId, seatId] = releaseMatch;
+    const seat = seats.get(seatId);
+    const { userId = 'anonymous' } = await readBody(req);
+
+    if (!seat) return sendJson(res, 404, { error: 'Seat not found' });
+    if (seat.status === 'HELD' && seat.heldBy === userId) {
+      seat.status = 'AVAILABLE';
+      seat.heldBy = null;
+      seat.ttl = null;
+    }
+
+    return sendJson(res, 200, { message: 'Seat released', eventId, seatId });
   }
 
   // POST /events/:eventId/seats/:seatId/pay (SQS FIFO -> Order Processor -> Neon DB ACID)
