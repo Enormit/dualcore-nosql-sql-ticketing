@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản trị (Admin) — PolyFlash</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="navbar-root"></div>
+
+  <main class="container">
+    <h2 class="section-heading">Bảng điều khiển Quản trị (Admin)</h2>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div id="admEventsCount" class="stat-val">0</div>
+        <div class="stat-lbl">Tổng sự kiện</div>
+      </div>
+      <div class="stat-card">
+        <div id="admUsersCount" class="stat-val">0</div>
+        <div class="stat-lbl">Người dùng</div>
+      </div>
+      <div class="stat-card">
+        <div id="admOrdersCount" class="stat-val">0</div>
+        <div class="stat-lbl">Vé đã bán</div>
+      </div>
+      <div class="stat-card">
+        <div id="admRevenue" class="stat-val" style="color: var(--accent);">0đ</div>
+        <div class="stat-lbl">Tổng doanh thu</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 1.5rem;">
+      <div class="card" style="height: fit-content;">
+        <h3 style="margin-bottom: 1rem;">Tạo sự kiện mới</h3>
+        <div class="form-group">
+          <label>Tên sự kiện</label>
+          <input id="admEvName" type="text" placeholder="VD: Acoustic Night 2026" />
+        </div>
+        <div class="form-group">
+          <label>Địa điểm</label>
+          <input id="admEvVenue" type="text" placeholder="VD: Nhà hát Hòa Bình, TP.HCM" />
+        </div>
+        <div class="form-group">
+          <label>Trạng thái mở bán</label>
+          <select id="admEvStatus">
+            <option value="OPEN">Đang mở bán</option>
+            <option value="UPCOMING">Sắp mở bán</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" style="width: 100%;" onclick="adminCreateEvent()">+ Thêm sự kiện</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom: 1rem;">Quản lý Sự kiện</h3>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr><th>Tên sự kiện</th><th>Địa điểm</th><th>Trạng thái</th><th>Hành động</th></tr>
+            </thead>
+            <tbody id="admEventsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom: 1rem;">Danh sách Người dùng</h3>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr><th>Tài khoản</th><th>Họ và tên</th><th>Số điện thoại</th><th>Email</th><th>Địa chỉ</th><th>Vai trò</th><th>Ngày tham gia</th></tr>
+          </thead>
+          <tbody id="admUsersTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/common.js"></script>
+  <script>
+    PolyFlash.renderNavbar('admin');
+
+    async function loadAdmin() {
+      const [evRes, ovRes] = await Promise.all([
+        fetch(PolyFlash.apiUrl(PolyFlash.API.LIST_EVENTS), { headers: PolyFlash.apiHeaders() }),
+        fetch(PolyFlash.apiUrl(PolyFlash.API.ADMIN_OVERVIEW), { headers: PolyFlash.apiHeaders() }),
+      ]);
+      const evData = await evRes.json();
+      const ovData = await ovRes.json();
+
+      document.getElementById('admEventsCount').textContent = ovData.stats.totalEvents;
+      document.getElementById('admUsersCount').textContent = ovData.stats.totalUsers;
+      document.getElementById('admOrdersCount').textContent = ovData.stats.totalOrders;
+      document.getElementById('admRevenue').textContent = `${ovData.stats.totalRevenue.toLocaleString('vi-VN')}đ`;
+
+      const evBody = document.getElementById('admEventsTable');
+      evBody.innerHTML = '';
+      for (const ev of evData.events) {
+        const nextStatus = ev.saleStatus === 'OPEN' ? 'UPCOMING' : 'OPEN';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${ev.name}</strong></td>
+          <td>${ev.venue}</td>
+          <td>${ev.saleStatus === 'OPEN' ? 'Đang mở bán' : 'Sắp mở bán'}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" onclick="adminToggleEvent('${ev.id}', '${nextStatus}')">
+              ${ev.saleStatus === 'OPEN' ? 'Tạm đóng' : 'Mở bán'}
+            </button>
+          </td>
+        `;
+        evBody.appendChild(tr);
+      }
+
+      const usrBody = document.getElementById('admUsersTable');
+      usrBody.innerHTML = '';
+      for (const u of ovData.users) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${u.userId}</strong></td>
+          <td>${u.fullName || '-'}</td>
+          <td>${u.phone || '-'}</td>
+          <td>${u.email}</td>
+          <td>${u.address || '-'}</td>
+          <td>${u.role}</td>
+          <td>${new Date(u.createdAt).toLocaleDateString('vi-VN')}</td>
+        `;
+        usrBody.appendChild(tr);
+      }
+    }
+
+    async function adminCreateEvent() {
+      const name = document.getElementById('admEvName').value.trim();
+      const venue = document.getElementById('admEvVenue').value.trim();
+      const saleStatus = document.getElementById('admEvStatus').value;
+      if (!name) return alert('Vui lòng nhập tên sự kiện');
+
+      await fetch(PolyFlash.apiUrl(PolyFlash.API.ADMIN_CREATE_EVENT), {
+        method: 'POST',
+        headers: PolyFlash.apiHeaders(),
+        body: JSON.stringify({ name, venue, saleStatus }),
+      });
+      document.getElementById('admEvName').value = '';
+      document.getElementById('admEvVenue').value = '';
+      await loadAdmin();
+    }
+
+    async function adminToggleEvent(eventId, saleStatus) {
+      await fetch(PolyFlash.apiUrl(PolyFlash.API.ADMIN_UPDATE_EVENT(eventId)), {
+        method: 'PATCH',
+        headers: PolyFlash.apiHeaders(),
+        body: JSON.stringify({ saleStatus }),
+      });
+      await loadAdmin();
+    }
+
+    loadAdmin();
+  </script>
+</body>
+</html>

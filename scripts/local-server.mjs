@@ -83,19 +83,22 @@ async function readBody(req) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
-  // Serve Frontend SPA & Config
-  if (req.method === 'GET' && url.pathname === '/') {
-    const html = fs.readFileSync(path.resolve(__dirname, '../frontend/index.html'), 'utf-8');
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(html);
-    return;
-  }
-
-  if (req.method === 'GET' && url.pathname === '/config.js') {
-    const js = fs.readFileSync(path.resolve(__dirname, '../frontend/config.js'), 'utf-8');
-    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
-    res.end(js);
-    return;
+  // Serve static files from frontend/
+  if (req.method === 'GET' && !url.pathname.startsWith('/api/')) {
+    const reqFile = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/+/, '');
+    const frontendDir = path.resolve(__dirname, '../frontend');
+    const filePath = path.resolve(frontendDir, reqFile);
+    if (filePath.startsWith(frontendDir) && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      const ext = path.extname(filePath);
+      const mimeTypes = {
+        '.html': 'text/html; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.js': 'application/javascript; charset=utf-8',
+      };
+      res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+      res.end(fs.readFileSync(filePath));
+      return;
+    }
   }
 
   // Normalize /api/v1 prefix so both /api/v1/* and legacy paths work

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Xác nhận & Thanh toán — PolyFlash</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="navbar-root"></div>
+
+  <main class="container">
+    <div class="card" style="max-width: 540px; margin: 0 auto;">
+      <h2 style="margin-bottom: 0.4rem;">Xác nhận &amp; Thanh toán</h2>
+      <p style="color: var(--muted); font-size: 0.88rem; margin-bottom: 1.25rem;">
+        Vui lòng hoàn tất thanh toán trước khi hết thời gian giữ chỗ.
+      </p>
+
+      <div id="checkoutEmpty" style="color: var(--muted); text-align: center; padding: 2rem 0;">
+        Bạn chưa chọn ghế nào. <a href="/index.html" class="btn btn-outline btn-sm" style="margin-left: 0.5rem;">Xem sự kiện</a>
+      </div>
+
+      <div id="checkoutActive" style="display: none;">
+        <div class="countdown-box">
+          <div style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em;">Thời gian hoàn tất đặt vé</div>
+          <div id="ttlCountdown" class="countdown-time">05:00</div>
+        </div>
+
+        <div style="background: #f8f9f7; border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="color: var(--muted);">Sự kiện:</span>
+            <strong id="coEventName">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="color: var(--muted);">Vị trí ghế:</span>
+            <strong id="coSeatId">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--muted);">Tổng thanh toán:</span>
+            <strong id="coPrice" style="color: var(--accent); font-size: 1.1rem;">-</strong>
+          </div>
+        </div>
+
+        <div id="sqsProcessing" style="display: none; text-align: center; padding: 1rem; color: var(--accent-dark);">
+          <span class="spinner"></span>
+          <div style="margin-top: 0.5rem; font-size: 0.9rem;">Đang xác nhận thanh toán và xuất vé điện tử...</div>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem;">
+          <button id="btnCancelHold" class="btn btn-outline" style="flex: 1;" onclick="cancelHold()">Hủy giữ chỗ</button>
+          <button id="btnMockPay" class="btn btn-primary" style="flex: 2;" onclick="payNow()">Thanh toán ngay</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAYMENT CONFIRMATION POPUP -->
+    <div id="paymentModal" class="modal-backdrop">
+      <div class="modal-box">
+        <div class="modal-icon">🎫</div>
+        <h3 style="font-size: 1.15rem; margin-bottom: 0.45rem; color: var(--accent-dark);">Bạn có muốn tiếp tục thanh toán không?</h3>
+        <p id="paymentModalDesc" style="color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem;"></p>
+        <div style="display: flex; gap: 0.75rem;">
+          <button class="btn btn-outline" style="flex: 1;" onclick="handleModalCancel()">Hủy giữ chỗ</button>
+          <button class="btn btn-primary" style="flex: 1.4;" onclick="handleModalContinue()">Tiếp tục thanh toán</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/common.js"></script>
+  <script>
+    PolyFlash.renderNavbar('lobby');
+    let activeHold = JSON.parse(sessionStorage.getItem('pf_active_hold') || 'null');
+    let pendingTargetUrl = null;
+    let ttlTimer = null;
+
+    function openPaymentModal(htmlDesc) {
+      document.getElementById('paymentModalDesc').innerHTML = htmlDesc;
+      document.getElementById('paymentModal').classList.add('open');
+    }
+
+    function closePaymentModal() {
+      document.getElementById('paymentModal').classList.remove('open');
+    }
+
+    function handleModalContinue() {
+      pendingTargetUrl = null;
+      closePaymentModal();
+    }
+
+    async function handleModalCancel() {
+      const target = pendingTargetUrl;
+      pendingTargetUrl = null;
+      closePaymentModal();
+      await cancelHold(target || null);
+    }
+
+    // Intercept navbar clicks when holding a seat
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest('a.nav-btn, a.brand');
+      if (link && activeHold) {
+        e.preventDefault();
+        pendingTargetUrl = link.getAttribute('href');
+        openPaymentModal(`Bạn đang giữ ghế <strong>${activeHold.seatId}</strong> (${activeHold.price.toLocaleString('vi-VN')}đ). Bạn có muốn tiếp tục thanh toán trước khi rời trang không?`);
+      }
+    });
+
+    function initCheckout() {
+      if (!activeHold) return;
+      document.getElementById('checkoutEmpty').style.display = 'none';
+      document.getElementById('checkoutActive').style.display = 'block';
+      document.getElementById('coEventName').textContent = activeHold.eventName;
+      document.getElementById('coSeatId').textContent = activeHold.seatId;
+      document.getElementById('coPrice').textContent = `${activeHold.price.toLocaleString('vi-VN')}đ`;
+
+      openPaymentModal(`Bạn đã giữ thành công ghế <strong>${activeHold.seatId}</strong> (${activeHold.price.toLocaleString('vi-VN')}đ). Bạn có muốn tiếp tục thanh toán ngay không?`);
+
+      ttlTimer = setInterval(() => {
+        const left = activeHold.expiresAt - Math.floor(Date.now() / 1000);
+        if (left <= 0) {
+          clearInterval(ttlTimer);
+          sessionStorage.removeItem('pf_active_hold');
+          const backUrl = `/seats.html?eventId=${encodeURIComponent(activeHold.eventId)}&eventName=${encodeURIComponent(activeHold.eventName)}`;
+          activeHold = null;
+          alert('Đã hết thời gian giữ chỗ. Vui lòng chọn lại ghế.');
+          window.location.href = backUrl;
+          return;
+        }
+        const m = String(Math.floor(left / 60)).padStart(2, '0');
+        const s = String(left % 60).padStart(2, '0');
+        document.getElementById('ttlCountdown').textContent = `${m}:${s}`;
+      }, 1000);
+    }
+
+    async function cancelHold(redirectUrl) {
+      if (!activeHold) return;
+      const user = PolyFlash.getUser();
+      const backUrl = redirectUrl || `/seats.html?eventId=${encodeURIComponent(activeHold.eventId)}&eventName=${encodeURIComponent(activeHold.eventName)}`;
+      await fetch(PolyFlash.apiUrl(PolyFlash.API.RELEASE_SEAT(activeHold.eventId, activeHold.seatId)), {
+        method: 'POST',
+        headers: PolyFlash.apiHeaders(),
+        body: JSON.stringify({ userId: user.userId }),
+      });
+      clearInterval(ttlTimer);
+      sessionStorage.removeItem('pf_active_hold');
+      activeHold = null;
+      window.location.href = backUrl;
+    }
+
+    async function payNow() {
+      if (!activeHold) return;
+      const user = PolyFlash.getUser();
+      document.getElementById('btnMockPay').disabled = true;
+      document.getElementById('btnCancelHold').disabled = true;
+      document.getElementById('sqsProcessing').style.display = 'block';
+
+      const res = await fetch(PolyFlash.apiUrl(PolyFlash.API.PAY_SEAT(activeHold.eventId, activeHold.seatId)), {
+        method: 'POST',
+        headers: PolyFlash.apiHeaders(),
+        body: JSON.stringify({ userId: user.userId }),
+      });
+
+      document.getElementById('btnMockPay').disabled = false;
+      document.getElementById('btnCancelHold').disabled = false;
+      document.getElementById('sqsProcessing').style.display = 'none';
+
+      if (res.ok) {
+        clearInterval(ttlTimer);
+        sessionStorage.removeItem('pf_active_hold');
+        activeHold = null;
+        window.location.href = '/tickets.html';
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Thanh toán thất bại');
+      }
+    }
+
+    initCheckout();
+  </script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chọn ghế — PolyFlash</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="navbar-root"></div>
+
+  <main class="container">
+    <div style="margin-bottom: 1rem;">
+      <a href="/index.html" class="btn btn-outline btn-sm">← Quay lại danh sách sự kiện</a>
+    </div>
+
+    <div class="seat-layout">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h2 id="seatEventTitle" style="font-size: 1.25rem;">Chọn vị trí ghế</h2>
+            <p style="color: var(--muted); font-size: 0.85rem;">Sơ đồ cập nhật trực tiếp theo thời gian thực</p>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="loadSeats()">Làm mới sơ đồ</button>
+        </div>
+
+        <div class="legend">
+          <div class="legend-item"><span class="dot" style="background: var(--accent)"></span> Ghế trống</div>
+          <div class="legend-item"><span class="dot" style="background: var(--held)"></span> Đang có người giữ</div>
+          <div class="legend-item"><span class="dot" style="background: #cbd5e1"></span> Đã bán</div>
+        </div>
+
+        <div class="stage">SÂN KHẤU / STAGE</div>
+        <div id="seatRows">Đang tải sơ đồ ghế...</div>
+      </div>
+
+      <div class="card" style="height: fit-content;">
+        <h3 style="margin-bottom: 0.75rem;">Thông tin đặt vé</h3>
+        <div id="selectedSeatBox" style="color: var(--muted); font-size: 0.9rem; margin-bottom: 1.25rem; padding: 1rem; background: #f8f9f7; border-radius: 10px;">
+          Vui lòng chọn một ghế còn trống trên sơ đồ.
+        </div>
+        <button id="btnHoldSeat" class="btn btn-primary" style="width: 100%; padding: 0.75rem;" disabled onclick="holdSelectedSeat()">
+          Tiếp tục đặt vé
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/common.js"></script>
+  <script>
+    PolyFlash.renderNavbar('lobby');
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get('eventId') || '11111111-1111-1111-1111-111111111111';
+    const eventName = params.get('eventName') || 'PolyFlash Live Concert 2026';
+    document.getElementById('seatEventTitle').textContent = eventName;
+
+    let cachedSeats = [];
+    let selectedSeat = null;
+
+    async function loadSeats() {
+      const res = await fetch(PolyFlash.apiUrl(PolyFlash.API.LIST_SEATS(eventId)), { headers: PolyFlash.apiHeaders() });
+      const data = await res.json();
+      cachedSeats = data.seats || [];
+      renderSeats(cachedSeats);
+    }
+
+    function renderSeats(seats) {
+      const rows = { A: [], B: [], C: [] };
+      for (const s of seats) {
+        const r = s.seatId.split('-')[0];
+        if (rows[r]) rows[r].push(s);
+      }
+      const container = document.getElementById('seatRows');
+      container.innerHTML = '';
+      const labels = { A: 'Hạng VIP — 1.200.000đ', B: 'Hạng Standard — 800.000đ', C: 'Hạng Economy — 500.000đ' };
+
+      for (const [key, list] of Object.entries(rows)) {
+        const group = document.createElement('div');
+        group.className = 'row-group';
+        group.innerHTML = `<div class="row-label"><span>Khu vực ${key}</span><span>${labels[key]}</span></div>`;
+        const grid = document.createElement('div');
+        grid.className = 'seat-grid';
+
+        for (const seat of list) {
+          const btn = document.createElement('button');
+          const isSel = selectedSeat && selectedSeat.seatId === seat.seatId && seat.status === 'AVAILABLE';
+          btn.className = `seat ${seat.status} ${isSel ? 'selected' : ''}`;
+          btn.disabled = seat.status !== 'AVAILABLE';
+          const label = seat.status === 'AVAILABLE' ? 'Trống' : seat.status === 'HELD' ? 'Đang giữ' : 'Đã bán';
+          btn.innerHTML = `${seat.seatId}<small>${label}</small>`;
+          btn.onclick = () => selectSeat(seat);
+          grid.appendChild(btn);
+        }
+        group.appendChild(grid);
+        container.appendChild(group);
+      }
+    }
+
+    function selectSeat(seat) {
+      selectedSeat = seat;
+      document.getElementById('selectedSeatBox').innerHTML = `
+        <div style="margin-bottom: 0.35rem;">Ghế đã chọn: <strong>${seat.seatId}</strong> (${seat.tier})</div>
+        <div>Giá vé: <strong style="color: var(--accent); font-size: 1.05rem;">${seat.price.toLocaleString('vi-VN')}đ</strong></div>
+      `;
+      document.getElementById('btnHoldSeat').disabled = false;
+      renderSeats(cachedSeats);
+    }
+
+    async function holdSelectedSeat() {
+      if (!selectedSeat) return;
+      const user = PolyFlash.getUser();
+      const res = await fetch(PolyFlash.apiUrl(PolyFlash.API.HOLD_SEAT(eventId, selectedSeat.seatId)), {
+        method: 'POST',
+        headers: PolyFlash.apiHeaders(),
+        body: JSON.stringify({ userId: user.userId, price: selectedSeat.price }),
+      });
+      const data = await res.json();
+
+      if (res.status === 202) {
+        sessionStorage.setItem(
+          'pf_active_hold',
+          JSON.stringify({
+            eventId,
+            eventName,
+            seatId: selectedSeat.seatId,
+            price: selectedSeat.price,
+            expiresAt: data.holdExpiresAt,
+          })
+        );
+        window.location.href = '/checkout.html';
+      } else {
+        alert(data.error || 'Ghế vừa có người khác chọn, vui lòng chọn ghế khác.');
+        await loadSeats();
+      }
+    }
+
+    loadSeats();
+    setInterval(loadSeats, 2500);
+  </script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vé của tôi — PolyFlash</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="navbar-root"></div>
+
+  <main class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+      <div>
+        <h2 class="section-heading" style="margin-bottom: 0.2rem;">Vé của tôi</h2>
+        <p style="color: var(--muted); font-size: 0.9rem;">Xuất trình mã QR tại cổng soát vé để tham gia sự kiện.</p>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="loadTickets()">Làm mới</button>
+    </div>
+    <div id="ticketsList">Đang tải vé...</div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/common.js"></script>
+  <script>
+    PolyFlash.renderNavbar('tickets');
+
+    async function loadTickets() {
+      const user = PolyFlash.getUser();
+      const res = await fetch(PolyFlash.apiUrl(PolyFlash.API.MY_TICKETS(user.userId)), { headers: PolyFlash.apiHeaders() });
+      const data = await res.json();
+      const list = document.getElementById('ticketsList');
+
+      if (!data.tickets || data.tickets.length === 0) {
+        list.innerHTML = `<div class="card" style="color: var(--muted); text-align: center;">Bạn chưa có vé nào cho tài khoản <strong>${user.fullName || user.userId}</strong>.</div>`;
+        return;
+      }
+
+      list.innerHTML = '';
+      for (const t of data.tickets) {
+        const card = document.createElement('div');
+        card.className = 'card ticket-card';
+        card.innerHTML = `
+          <div>
+            <div style="font-size: 0.78rem; color: var(--accent); font-weight: 700;">✔ VÉ HỢP LỆ</div>
+            <h3 style="margin: 0.25rem 0;">${t.eventName}</h3>
+            <p style="color: var(--muted); font-size: 0.88rem;">
+              Mã đơn hàng: <strong>${t.orderId}</strong> • Ghế: <strong>${t.seatId}</strong> (${t.tier})<br/>
+              Giá vé: <strong>${t.amount.toLocaleString('vi-VN')}đ</strong> • Ngày mua: ${new Date(t.paidAt).toLocaleString('vi-VN')}
+            </p>
+          </div>
+          <div class="qr-box" title="Mã QR Check-in: ${t.orderId}">
+            <svg viewBox="0 0 36 36" width="72" height="72">
+              <rect width="36" height="36" fill="#fff"/>
+              <path d="M2 2h10v10H2zM4 4v6h6V4zM6 6h2v2H6zM24 2h10v10H24zM26 4v6h6V4zM28 6h2v2h-2zM2 24h10v10H2zM4 26v6h6v-6zM6 28h2v2H6zM15 4h2v4h-2zM19 6h2v6h-2zM15 14h6v6h-6zM24 16h4v2h-4zM30 16h4v6h-4zM16 24h4v4h-4zM22 24h6v2h-6zM24 28h8v4h-8z" fill="#404E3B"/>
+            </svg>
+          </div>
+        `;
+        list.appendChild(card);
+      }
+    }
+
+    loadTickets();
+  </script>
+</body>
+</html>

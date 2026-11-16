@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tài khoản & Thông tin cá nhân — PolyFlash</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="navbar-root"></div>
+
+  <main class="container">
+    <div class="card" style="max-width: 480px; margin: 1.5rem auto;">
+      <h2 style="margin-bottom: 0.35rem;">Tài khoản &amp; Thông tin cá nhân</h2>
+      <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+        Đăng nhập, đăng ký hoặc cập nhật thông tin liên hệ nhận vé điện tử.
+      </p>
+
+      <div class="form-group">
+        <label>Họ và tên</label>
+        <input id="authFullName" type="text" placeholder="VD: Nguyễn Văn An" />
+      </div>
+      <div class="form-group">
+        <label>Số điện thoại</label>
+        <input id="authPhone" type="tel" placeholder="VD: 0901234567" />
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input id="authEmail" type="email" />
+      </div>
+      <div class="form-group">
+        <label>Địa chỉ</label>
+        <input id="authAddress" type="text" placeholder="VD: Quận 1, TP. Hồ Chí Minh" />
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu</label>
+        <input id="authPass" type="password" value="PolyFlash@2026" />
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <button class="btn btn-primary" style="flex: 1;" onclick="authAction('login')">Đăng nhập</button>
+        <button class="btn btn-outline" style="flex: 1;" onclick="authAction('register')">Đăng ký</button>
+      </div>
+      <button class="btn btn-outline" style="width: 100%;" onclick="saveProfile()">Lưu thông tin cá nhân</button>
+      <div id="authMsg" style="margin-top: 1rem; font-size: 0.85rem; color: var(--accent); text-align: center;"></div>
+    </div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/common.js"></script>
+  <script>
+    PolyFlash.renderNavbar('auth');
+
+    function fillForm() {
+      const user = PolyFlash.getUser();
+      document.getElementById('authFullName').value = user.fullName || '';
+      document.getElementById('authPhone').value = user.phone || '';
+      document.getElementById('authEmail').value = user.email || '';
+      document.getElementById('authAddress').value = user.address || '';
+    }
+
+    async function authAction(type) {
+      const fullName = document.getElementById('authFullName').value.trim();
+      const phone = document.getElementById('authPhone').value.trim();
+      const email = document.getElementById('authEmail').value.trim();
+      const address = document.getElementById('authAddress').value.trim();
+
+      const endpoint = type === 'login' ? PolyFlash.API.LOGIN : PolyFlash.API.REGISTER;
+      const res = await fetch(PolyFlash.apiUrl(endpoint), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName, phone, email, address }),
+      });
+      const data = await res.json();
+      PolyFlash.setAuth(data.token, data.user);
+      PolyFlash.renderNavbar('auth');
+      fillForm();
+      document.getElementById('authMsg').textContent = `Đã ${type === 'login' ? 'đăng nhập' : 'đăng ký'} thành công: ${data.user.fullName || data.user.userId}`;
+    }
+
+    async function saveProfile() {
+      const user = PolyFlash.getUser();
+      const fullName = document.getElementById('authFullName').value.trim();
+      const phone = document.getElementById('authPhone').value.trim();
+      const email = document.getElementById('authEmail').value.trim();
+      const address = document.getElementById('authAddress').value.trim();
+
+      const res = await fetch(PolyFlash.apiUrl(PolyFlash.API.UPDATE_PROFILE), {
+        method: 'PUT',
+        headers: PolyFlash.apiHeaders(),
+        body: JSON.stringify({ userId: user.userId, fullName, phone, email, address }),
+      });
+      const data = await res.json();
+      PolyFlash.setAuth(null, data.user);
+      PolyFlash.renderNavbar('auth');
+      document.getElementById('authMsg').textContent = 'Đã cập nhật thông tin cá nhân thành công!';
+    }
+
+    fillForm();
+  </script>
+</body>
+</html>
