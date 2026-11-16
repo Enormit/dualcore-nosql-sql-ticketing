@@ -264,6 +264,46 @@
     table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
     th, td { text-align: left; padding: 0.75rem 0.6rem; border-bottom: 1px solid #eef1ec; }
     th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+
+    /* Modal Popup */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(64, 78, 59, 0.45);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 1rem;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      max-width: 420px;
+      width: 100%;
+      padding: 1.75rem;
+      box-shadow: 0 20px 50px rgba(64, 78, 59, 0.25);
+      animation: modalPop 0.18s ease-out;
+    }
+    @keyframes modalPop {
+      from { opacity: 0; transform: scale(0.94); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .modal-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(123, 150, 105, 0.18);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -508,6 +548,21 @@
         <div id="authMsg" style="margin-top: 1rem; font-size: 0.85rem; color: var(--accent); text-align: center;"></div>
       </div>
     </section>
+
+    <!-- PAYMENT CONFIRMATION POPUP -->
+    <div id="paymentModal" class="modal-backdrop">
+      <div class="modal-box">
+        <div class="modal-icon">🎫</div>
+        <h3 style="font-size: 1.15rem; margin-bottom: 0.45rem; color: var(--accent-dark);">Bạn có muốn tiếp tục thanh toán không?</h3>
+        <p id="paymentModalDesc" style="color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+          Ghế của bạn đang được giữ tạm thời trong 5 phút. Vui lòng xác nhận để hoàn tất đơn hàng.
+        </p>
+        <div style="display: flex; gap: 0.75rem;">
+          <button class="btn btn-outline" style="flex: 1;" onclick="handleModalCancel()">Hủy giữ chỗ</button>
+          <button class="btn btn-primary" style="flex: 1.4;" onclick="handleModalContinue()">Tiếp tục thanh toán</button>
+        </div>
+      </div>
+    </div>
   </main>
 
   <script>
@@ -541,7 +596,16 @@
       return h;
     }
 
+    let pendingNavPage = null;
+
     function navigate(page) {
+      const currentCheckoutActive = document.getElementById('page-checkout').classList.contains('active');
+      if (currentCheckoutActive && page !== 'checkout' && activeHold) {
+        pendingNavPage = page;
+        openPaymentModal(`Bạn đang giữ ghế <strong>${activeHold.seatId}</strong> (${activeHold.price.toLocaleString('vi-VN')}đ). Bạn có muốn tiếp tục thanh toán trước khi rời trang không?`);
+        return;
+      }
+
       document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
       document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
       document.getElementById(`page-${page}`).classList.add('active');
@@ -552,6 +616,30 @@
       if (page === 'seats') loadSeats();
       if (page === 'tickets') loadTickets();
       if (page === 'admin') loadAdmin();
+    }
+
+    function openPaymentModal(htmlDesc) {
+      document.getElementById('paymentModalDesc').innerHTML = htmlDesc;
+      document.getElementById('paymentModal').classList.add('open');
+    }
+
+    function closePaymentModal() {
+      document.getElementById('paymentModal').classList.remove('open');
+    }
+
+    function handleModalContinue() {
+      pendingNavPage = null;
+      closePaymentModal();
+    }
+
+    async function handleModalCancel() {
+      const nextTarget = pendingNavPage;
+      pendingNavPage = null;
+      closePaymentModal();
+      await cancelHold();
+      if (nextTarget && nextTarget !== 'seats') {
+        navigate(nextTarget);
+      }
     }
 
     // Page 1: Events
@@ -673,6 +761,7 @@
         selectedSeat = null;
         startCheckout();
         navigate('checkout');
+        openPaymentModal(`Bạn đã giữ thành công ghế <strong>${activeHold.seatId}</strong> (${activeHold.price.toLocaleString('vi-VN')}đ). Bạn có muốn tiếp tục thanh toán ngay không?`);
       } else {
         alert(data.error || 'Ghế vừa có người khác chọn, vui lòng chọn ghế khác.');
         await loadSeats();
