@@ -159,19 +159,25 @@ resource "aws_iam_role_policy" "order_processor_policy" {
   })
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
+
 # Least-privilege policy: alert-forwarder (SSM Telegram Secrets)
 resource "aws_iam_role_policy" "alert_forwarder_ssm_policy" {
-  count = length(var.ssm_telegram_arns) > 0 ? 1 : 0
-  name  = "${var.name_prefix}-alert-forwarder-ssm"
-  role  = aws_iam_role.lambda_roles["alert-forwarder"].id
+  name = "${var.name_prefix}-alert-forwarder-ssm"
+  role = aws_iam_role.lambda_roles["alert-forwarder"].id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["ssm:GetParameter", "ssm:GetParameters"]
-        Resource = var.ssm_telegram_arns
+        Effect = "Allow"
+        Action = ["ssm:GetParameter", "ssm:GetParameters"]
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.name_prefix}/telegram-bot-token",
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.name_prefix}/telegram-chat-id",
+        ]
       }
     ]
   })
