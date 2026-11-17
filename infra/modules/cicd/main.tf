@@ -73,18 +73,6 @@ data "aws_iam_policy_document" "github_deploy_trust" {
 
     condition {
       test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:repository_owner"
-      values   = [var.github_owner]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:repository"
-      values   = [local.full_repo]
-    }
-
-    condition {
-      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
         "repo:${local.full_repo}:environment:production",
@@ -149,18 +137,6 @@ data "aws_iam_policy_document" "github_pr_trust" {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:repository_owner"
-      values   = [var.github_owner]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:repository"
-      values   = [local.full_repo]
     }
 
     condition {
