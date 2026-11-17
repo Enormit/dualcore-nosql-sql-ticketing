@@ -1,10 +1,14 @@
 /**
  * PolyFlash Frontend API Configuration
- * Khi deploy lên Amazon S3 + CloudFront, thay đổi API_BASE_URL thành URL của Amazon API Gateway:
- * VD: https://xxxxxxxxxx.execute-api.ap-southeast-1.amazonaws.com
+ * Tự động chuyển giữa Local Dev Server và Amazon API Gateway khi chạy trên CloudFront / enormitpham.me
  */
+const IS_LOCAL =
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
 window.POLYFLASH_API = {
-  BASE_URL: window.location.origin,
+  BASE_URL: IS_LOCAL
+    ? window.location.origin
+    : 'https://sdz6xbd6l6.execute-api.ap-southeast-1.amazonaws.com',
   ENDPOINTS: {
     // 1. Events
     LIST_EVENTS: '/api/v1/events',

@@ -46,6 +46,9 @@ module "compute" {
   seat_hold_ttl_seconds                = var.seat_hold_ttl_seconds
   order_processor_reserved_concurrency = var.order_processor_reserved_concurrency
   log_retention_days                   = var.log_retention_days
+  cognito_user_pool_id                 = module.auth.user_pool_id
+  cognito_user_pool_arn                = module.auth.user_pool_arn
+  cognito_client_id                    = module.auth.client_id
 }
 
 module "api" {
@@ -58,6 +61,8 @@ module "api" {
   seat_reader_name       = module.compute.seat_reader_name
   seat_locker_invoke_arn = module.compute.seat_locker_invoke_arn
   seat_locker_name       = module.compute.seat_locker_name
+  core_api_invoke_arn    = module.compute.core_api_invoke_arn
+  core_api_name          = module.compute.core_api_name
   log_retention_days     = var.log_retention_days
 }
 

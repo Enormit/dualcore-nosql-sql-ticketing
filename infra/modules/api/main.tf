@@ -34,6 +34,14 @@ variable "log_retention_days" {
   type = number
 }
 
+variable "core_api_invoke_arn" {
+  type = string
+}
+
+variable "core_api_name" {
+  type = string
+}
+
 resource "aws_apigatewayv2_api" "this" {
   name          = "${var.name_prefix}-http-api"
   protocol_type = "HTTP"
@@ -121,6 +129,27 @@ resource "aws_lambda_permission" "allow_apigw_locker" {
   statement_id  = "AllowAPIGatewayInvokeLocker"
   action        = "lambda:InvokeFunction"
   function_name = var.seat_locker_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/*/*"
+}
+
+resource "aws_apigatewayv2_integration" "core_api" {
+  api_id                 = aws_apigatewayv2_api.this.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = var.core_api_invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "default_core_api" {
+  api_id    = aws_apigatewayv2_api.this.id
+  route_key = "$default"
+  target    = "integrations/${aws_apigatewayv2_integration.core_api.id}"
+}
+
+resource "aws_lambda_permission" "allow_apigw_core" {
+  statement_id  = "AllowAPIGatewayInvokeCoreAPI"
+  action        = "lambda:InvokeFunction"
+  function_name = var.core_api_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/*/*"
 }

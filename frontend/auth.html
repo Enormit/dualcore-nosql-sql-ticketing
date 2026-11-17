@@ -130,17 +130,24 @@
 
     async function authAction(type) {
       const email = document.getElementById('guestEmail').value.trim();
+      const password = document.getElementById('guestPass').value;
       const fullName = document.getElementById('regFullName').value.trim();
       const phone = document.getElementById('regPhone').value.trim();
       const address = document.getElementById('regAddress').value.trim();
+      const guestMsg = document.getElementById('guestMsg');
 
       const endpoint = type === 'login' ? PolyFlash.API.LOGIN : PolyFlash.API.REGISTER;
       const res = await fetch(PolyFlash.apiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, fullName, phone, address }),
+        body: JSON.stringify({ email, password, fullName, phone, address }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        guestMsg.style.color = '#d97706';
+        guestMsg.textContent = data.error || 'Đăng nhập / đăng ký thất bại';
+        return;
+      }
       PolyFlash.setAuth(data.token, data.user);
       isRegisterOpen = false;
       await renderAuthPage();

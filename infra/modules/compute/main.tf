@@ -51,12 +51,25 @@ variable "log_retention_days" {
   type = number
 }
 
+variable "cognito_user_pool_id" {
+  type = string
+}
+
+variable "cognito_user_pool_arn" {
+  type = string
+}
+
+variable "cognito_client_id" {
+  type = string
+}
+
 locals {
   services = {
     seat-reader     = "${path.root}/../services/seat-reader/bundle"
     seat-locker     = "${path.root}/../services/seat-locker/bundle"
     order-processor = "${path.root}/../services/order-processor/bundle"
     alert-forwarder = "${path.root}/../services/alert-forwarder/bundle"
+    core-api        = "${path.root}/../services/core-api/bundle"
   }
 }
 
@@ -290,6 +303,71 @@ resource "aws_lambda_function" "alert_forwarder" {
   }
 
   depends_on = [aws_cloudwatch_log_group.lambda_logs["alert-forwarder"]]
+}
+
+# Least-privilege policy: core-api (SSM Neon URL + DynamoDB Release + Cognito Confirm)
+resource "aws_iam_role_policy" "core_api_policy" {
+  name = "${var.name_prefix}-core-api-policy"
+  role = aws_iam_role.lambda_roles["core-api"].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter"]
+        Resource = var.ssm_neon_pooled_url_arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:UpdateItem"]
+        Resource = var.dynamodb_table_arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["cognito-idp:AdminConfirmSignUp"]
+        Resource = var.cognito_user_pool_arn
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "core_api" {
+  function_name    = "${var.name_prefix}-core-api"
+  role             = aws_iam_role.lambda_roles["core-api"].arn
+  runtime          = "nodejs22.x"
+  handler          = "index.handler"
+  filename         = data.archive_file.lambda_zips["core-api"].output_path
+  source_code_hash = data.archive_file.lambda_zips["core-api"].output_base64sha256
+  timeout          = 15
+  memory_size      = 512
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  environment {
+    variables = {
+      DYNAMODB_TABLE_SEATS      = var.dynamodb_table_name
+      SSM_NEON_POOLED_URL_PARAM = var.ssm_neon_pooled_url_name
+      COGNITO_USER_POOL_ID      = var.cognito_user_pool_id
+      COGNITO_CLIENT_ID         = var.cognito_client_id
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.lambda_logs["core-api"]]
+}
+
+output "core_api_arn" {
+  value = aws_lambda_function.core_api.arn
+}
+
+output "core_api_invoke_arn" {
+  value = aws_lambda_function.core_api.invoke_arn
+}
+
+output "core_api_name" {
+  value = aws_lambda_function.core_api.function_name
 }
 
 output "seat_reader_arn" {
