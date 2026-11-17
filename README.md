@@ -68,6 +68,31 @@ Luồng đầy đủ: `API Gateway (JWT Authorizer) -> seat-locker Lambda -> Dyn
 - **Neon PostgreSQL (`orders` & `tickets`):** Ghi nhận đúng 1 đơn hàng `COMPLETED` (`bfdc9763-4ffa-4524-80ea-689d3187fe00`, `user_id = cloud-load-user-19`, `seat_id = A-01`, `1,200,000đ`).
 - **Amazon DynamoDB (`polyflash-prod-event-seats`):** Ghế `A-01` tự động đồng bộ sang trạng thái `SOLD` và gỡ bỏ TTL.
 
+```json
+// Kết quả truy vấn thực tế từ DynamoDB & Neon PostgreSQL sau bài test Flash Sale
+{
+  "dynamodb_seat_A01": {
+    "PK": "EVENT#11111111-1111-1111-1111-111111111111",
+    "SK": "SEAT#A-01",
+    "status": "SOLD",
+    "held_by": "cloud-load-user-19",
+    "price": 1200000
+  },
+  "neon_postgres_order": {
+    "id": "bfdc9763-4ffa-4524-80ea-689d3187fe00",
+    "user_id": "cloud-load-user-19",
+    "status": "COMPLETED",
+    "seat_id": "A-01",
+    "total_amount": "1200000.00"
+  }
+}
+```
+
+### 3.4. Bằng chứng Cảnh báo Thời gian thực (CloudWatch Alarm -> SNS -> SSM -> Telegram)
+Trong lúc chạy giả tải vượt giới hạn 10 concurrent Lambdas (tổng cộng `165 + 237 + 21 = 423` HTTP `503`), hệ thống giám sát đã tự động kích hoạt cảnh báo `polyflash-prod-api-5xx-errors` với đúng **`423.0` datapoints**, đẩy qua **Amazon SNS**, kích hoạt Lambda `alert-forwarder` (giải mã Token & Chat ID từ **SSM Parameter Store**) và bắn tin nhắn trực tiếp về **Telegram** lúc `13:06` (`06:06:45Z`):
+
+![CloudWatch Alarm Telegram Alert](docs/assets/cloudwatch-telegram-alert.png)
+
 ---
 
 ## 4. Ước tính Số User Hệ thống Chịu được
