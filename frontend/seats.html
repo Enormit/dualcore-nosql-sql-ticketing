@@ -109,12 +109,23 @@
 
     async function holdSelectedSeat() {
       if (!selectedSeat) return;
+      if (!PolyFlash.getToken()) {
+        alert('Vui lòng đăng nhập tài khoản trước khi giữ ghế.');
+        window.location.href = '/auth.html';
+        return;
+      }
       const user = PolyFlash.getUser();
       const res = await fetch(PolyFlash.apiUrl(PolyFlash.API.HOLD_SEAT(eventId, selectedSeat.seatId)), {
         method: 'POST',
         headers: PolyFlash.apiHeaders(),
         body: JSON.stringify({ userId: user.userId, price: selectedSeat.price }),
       });
+      if (res.status === 401) {
+        PolyFlash.logout();
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        window.location.href = '/auth.html';
+        return;
+      }
       const data = await res.json();
 
       if (res.status === 202) {

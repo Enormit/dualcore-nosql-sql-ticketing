@@ -65,6 +65,19 @@ function getAuthSub(event: APIGatewayProxyEventV2): string | null {
 export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const method = event.requestContext.http.method;
   const path = event.rawPath;
+
+  if (method === 'OPTIONS') {
+    return {
+      statusCode: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization,Content-Type',
+      },
+      body: '',
+    };
+  }
+
   const pool = await getPool();
 
   try {
@@ -313,6 +326,13 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
         [name || 'Sự kiện mới', venue || 'TP. Hồ Chí Minh', startTime || new Date(Date.now() + 86400000 * 7).toISOString(), totalSeats]
       );
       return json(201, { event: { ...rows[0], saleStatus: 'OPEN' } });
+    }
+
+    // 11. PATCH /api/v1/admin/events/{eventId}
+    const adminEvMatch = path.match(/^\/api\/v1\/admin\/events\/([^/]+)$/);
+    if (method === 'PATCH' && adminEvMatch) {
+      const { saleStatus = 'OPEN' } = parseBody(event);
+      return json(200, { event: { id: adminEvMatch[1], saleStatus } });
     }
 
     return json(404, { error: `Route not found: ${method} ${path}` });
