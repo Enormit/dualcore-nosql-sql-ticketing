@@ -17,9 +17,16 @@ variable "environment" {
 }
 
 variable "neon_database_pooled_url" {
-  description = "Neon PostgreSQL Pooled URL (PgBouncer) for Lambda workers"
+  description = "Neon PostgreSQL Pooled URL (PgBouncer) stored in SSM SecureString"
   type        = string
   sensitive   = true
+}
+
+variable "neon_database_direct_url" {
+  description = "Neon PostgreSQL Direct URL for SQL migrations stored in SSM SecureString"
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 variable "telegram_bot_token" {

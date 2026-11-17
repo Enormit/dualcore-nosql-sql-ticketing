@@ -1,7 +1,29 @@
 import type { SNSEvent } from 'aws-lambda';
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? '';
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? '';
+const ssmClient = new SSMClient({});
+const SSM_TELEGRAM_TOKEN_PARAM = process.env.SSM_TELEGRAM_TOKEN_PARAM ?? '';
+const SSM_TELEGRAM_CHAT_ID_PARAM = process.env.SSM_TELEGRAM_CHAT_ID_PARAM ?? '';
+
+let cachedToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
+let cachedChatId = process.env.TELEGRAM_CHAT_ID ?? '';
+
+async function resolveSecret(currentVal: string, paramName: string): Promise<string> {
+  if (currentVal || !paramName) return currentVal;
+  const res = await ssmClient.send(
+    new GetParameterCommand({
+      Name: paramName,
+      WithDecryption: true,
+    })
+  );
+  return res.Parameter?.Value ?? '';
+}
+
+async function getTelegramConfig(): Promise<{ token: string; chatId: string }> {
+  cachedToken = await resolveSecret(cachedToken, SSM_TELEGRAM_TOKEN_PARAM);
+  cachedChatId = await resolveSecret(cachedChatId, SSM_TELEGRAM_CHAT_ID_PARAM);
+  return { token: cachedToken, chatId: cachedChatId };
+}
 
 interface CloudWatchAlarmPayload {
   AlarmName?: string;
@@ -40,17 +62,18 @@ function formatAlarmMessage(rawMessage: string, subject?: string): string {
 }
 
 async function sendTelegramMessage(text: string): Promise<void> {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    log('WARN', 'Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID, skipping notification');
+  const { token, chatId } = await getTelegramConfig();
+  if (!token || !chatId) {
+    log('WARN', 'Missing Telegram credentials in env/SSM, skipping notification');
     return;
   }
 
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
+      chat_id: chatId,
       text,
       parse_mode: 'Markdown',
     }),

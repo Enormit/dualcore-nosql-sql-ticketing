@@ -18,18 +18,25 @@ variable "order_queue_arn" {
   type = string
 }
 
-variable "neon_database_pooled_url" {
-  type      = string
-  sensitive = true
-}
-
-variable "telegram_bot_token" {
-  type      = string
-  sensitive = true
-}
-
-variable "telegram_chat_id" {
+variable "ssm_neon_pooled_url_name" {
   type = string
+}
+
+variable "ssm_neon_pooled_url_arn" {
+  type = string
+}
+
+variable "ssm_telegram_bot_token_name" {
+  type = string
+}
+
+variable "ssm_telegram_chat_id_name" {
+  type = string
+}
+
+variable "ssm_telegram_arns" {
+  type    = list(string)
+  default = []
 }
 
 variable "seat_hold_ttl_seconds" {
@@ -125,9 +132,9 @@ resource "aws_iam_role_policy" "seat_locker_policy" {
   })
 }
 
-# Least-privilege policy: order-processor (SQS Consume + DynamoDB Update)
+# Least-privilege policy: order-processor (SQS Consume + DynamoDB Update + SSM Neon URL)
 resource "aws_iam_role_policy" "order_processor_policy" {
-  name = "${var.name_prefix}-order-processor-sqs-ddb"
+  name = "${var.name_prefix}-order-processor-sqs-ddb-ssm"
   role = aws_iam_role.lambda_roles["order-processor"].id
 
   policy = jsonencode({
@@ -142,6 +149,29 @@ resource "aws_iam_role_policy" "order_processor_policy" {
         Effect   = "Allow"
         Action   = ["dynamodb:UpdateItem"]
         Resource = var.dynamodb_table_arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter"]
+        Resource = var.ssm_neon_pooled_url_arn
+      }
+    ]
+  })
+}
+
+# Least-privilege policy: alert-forwarder (SSM Telegram Secrets)
+resource "aws_iam_role_policy" "alert_forwarder_ssm_policy" {
+  count = length(var.ssm_telegram_arns) > 0 ? 1 : 0
+  name  = "${var.name_prefix}-alert-forwarder-ssm"
+  role  = aws_iam_role.lambda_roles["alert-forwarder"].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter", "ssm:GetParameters"]
+        Resource = var.ssm_telegram_arns
       }
     ]
   })
@@ -218,8 +248,8 @@ resource "aws_lambda_function" "order_processor" {
 
   environment {
     variables = {
-      DYNAMODB_TABLE_SEATS     = var.dynamodb_table_name
-      NEON_DATABASE_POOLED_URL = var.neon_database_pooled_url
+      DYNAMODB_TABLE_SEATS      = var.dynamodb_table_name
+      SSM_NEON_POOLED_URL_PARAM = var.ssm_neon_pooled_url_name
     }
   }
 
@@ -245,8 +275,8 @@ resource "aws_lambda_function" "alert_forwarder" {
 
   environment {
     variables = {
-      TELEGRAM_BOT_TOKEN = var.telegram_bot_token
-      TELEGRAM_CHAT_ID   = var.telegram_chat_id
+      SSM_TELEGRAM_TOKEN_PARAM   = var.ssm_telegram_bot_token_name
+      SSM_TELEGRAM_CHAT_ID_PARAM = var.ssm_telegram_chat_id_name
     }
   }
 

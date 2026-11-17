@@ -7,6 +7,9 @@
     "build": "tsc",
     "test": "node --test dist/tests/*.test.js"
   },
+  "dependencies": {
+    "@aws-sdk/client-ssm": "^3.670.0"
+  },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^22.0.0",

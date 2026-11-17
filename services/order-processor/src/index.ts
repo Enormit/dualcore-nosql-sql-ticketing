@@ -1,19 +1,39 @@
 import type { SQSBatchResponse, SQSEvent } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { Pool } from 'pg';
 
 const ddbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(ddbClient);
+const ssmClient = new SSMClient({});
 
 const TABLE_NAME = process.env.DYNAMODB_TABLE_SEATS ?? 'EventSeats';
-const POOLED_URL = process.env.NEON_DATABASE_POOLED_URL ?? '';
+const SSM_NEON_POOLED_URL_PARAM = process.env.SSM_NEON_POOLED_URL_PARAM ?? '';
 
-const pool = new Pool({
-  connectionString: POOLED_URL,
-  max: 5,
-  ssl: { rejectUnauthorized: true },
-});
+let cachedPool: Pool | null = null;
+
+async function getPool(): Promise<Pool> {
+  if (cachedPool) return cachedPool;
+
+  let connectionString = process.env.NEON_DATABASE_POOLED_URL ?? '';
+  if (!connectionString && SSM_NEON_POOLED_URL_PARAM) {
+    const res = await ssmClient.send(
+      new GetParameterCommand({
+        Name: SSM_NEON_POOLED_URL_PARAM,
+        WithDecryption: true,
+      })
+    );
+    connectionString = res.Parameter?.Value ?? '';
+  }
+
+  cachedPool = new Pool({
+    connectionString,
+    max: 5,
+    ssl: { rejectUnauthorized: true },
+  });
+  return cachedPool;
+}
 
 interface OrderPayload {
   eventId: string;
@@ -28,6 +48,7 @@ function log(level: 'INFO' | 'ERROR', message: string, meta: Record<string, unkn
 }
 
 async function processSingleOrder(payload: OrderPayload): Promise<void> {
+  const pool = await getPool();
   const client = await pool.connect();
 
   try {
