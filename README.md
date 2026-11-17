@@ -17,88 +17,96 @@ dualcore-nosql-sql-ticketing/
 ├── docs/                   # Đặc tả API (/api/v1)
 ├── frontend/               # Giao diện đa trang (S3 + CloudFront): Lobby, Seat Map, Checkout, Tickets, Admin, Auth
 ├── infra/                  # Modular Terraform IaC (storage, messaging, auth, frontend, compute, api, monitoring, cicd)
-├── scripts/                # Local dev server mô phỏng API Gateway & luồng đặt vé
+├── scripts/                # Công cụ hỗ trợ phát triển
 ├── services/               # 4 AWS Lambda microservices (seat-reader, seat-locker, order-processor, alert-forwarder)
-└── tests/load-test/        # Kịch bản giả tải & kiểm thử tranh chấp Flash Sale
+└── tests/load-test/        # Kịch bản giả tải & kiểm thử tranh chấp Flash Sale trên AWS Cloud
 ```
 
 ---
 
-## 2. Hướng dẫn Chạy Local & Kiểm thử
+## 2. Hạ tầng Cloud Đang Vận Hành (AWS `ap-southeast-1` + Neon DB)
 
-### 2.1. Chạy ứng dụng Web trên Localhost
+- **Frontend CDN (CloudFront + S3):** `https://d13el8mejyicnc.cloudfront.net`
+- **API Gateway (HTTP API v2):** `https://sdz6xbd6l6.execute-api.ap-southeast-1.amazonaws.com`
+- **Cognito User Pool:** `ap-southeast-1_fmJ9lD11H`
+- **DynamoDB Table:** `polyflash-prod-event-seats`
+- **SQS FIFO Queue:** `polyflash-prod-order-queue.fifo`
+
+---
+
+## 3. Kết quả Giả tải (Load Test) Thực tế trên Cloud
+
+Kịch bản giả tải [tests/load-test/flash-sale-bench.mjs](file:///home/ubuntu/dualcore-nosql-sql-ticketing/tests/load-test/flash-sale-bench.mjs) được bắn trực tiếp từ máy client tới các endpoint AWS Production (`CloudFront` và `API Gateway` ở Singapore):
+
 ```bash
-node scripts/local-server.mjs
-# Truy cập: http://localhost:3000
+AUTH_TOKEN="<cognito_id_token>" node tests/load-test/flash-sale-bench.mjs
 ```
 
-### 2.2. Chạy Unit Mock Tests cho Microservices
+### 3.1. Hiệu năng phân phối Frontend tĩnh (Amazon CloudFront + S3)
+| Mức đồng thời (Concurrency) | Tổng Request | Throughput (RPS) | HTTP `200` | p50 Latency | p95 Latency | p99 Latency |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **50** | 300 | **280 req/s** | 300 / 300 (100%) | 86.20 ms | 591.85 ms | 733.68 ms |
+| **150** | 600 | **297 req/s** | 600 / 600 (100%) | 95.89 ms | 1,269.44 ms | 1,637.12 ms |
+
+### 3.2. Hiệu năng đọc sơ đồ ghế (`API Gateway -> seat-reader Lambda -> DynamoDB`)
+| Mức đồng thời (Concurrency) | Tổng Request | Throughput (RPS) | HTTP `200` | HTTP `503` (Throttled) | p50 Latency | p95 Latency | p99 Latency |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **10** | 100 | **52 req/s** | 100 (100%) | 0 | 91.38 ms | 862.33 ms | 1,195.14 ms |
+| **30** | 300 | 299 req/s | 135 | 165 | 69.76 ms | 290.36 ms | 412.17 ms |
+| **60** | 300 | 377 req/s | 63 | 237 | 64.76 ms | 508.13 ms | 628.59 ms |
+
+> **Phát hiện nút thắt (Bottleneck) từ bài test thực tế:** Tài khoản AWS hiện tại bị giới hạn **Account Unreserved Lambda Concurrency = 10**. Do đó, ở mức concurrency `10`, hệ thống đạt **100% thành công (`52 RPS`)**; khi đẩy lên `30` hoặc `60` request đồng thời trong tích tắc, các request vượt quá 10 Lambda song song sẽ bị AWS Lambda từ chối (`503 Service Unavailable`).
+
+### 3.3. Kiểm thử tranh chấp Flash Sale (`30 users` đồng thời tranh 1 ghế `A-01` có Cognito JWT thật)
+Luồng đầy đủ: `API Gateway (JWT Authorizer) -> seat-locker Lambda -> DynamoDB Conditional Write -> SQS FIFO -> order-processor Lambda -> Neon PostgreSQL`
+
+| Số User đồng thời | Giữ ghế thành công (`202`) | Bị từ chối (`409 Conflict`) | Bị giới hạn Lambda (`503`) | Bán trùng vé (Overselling) | p50 Latency | p99 Latency |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **30** | **1** (`cloud-load-user-19`) | **8** | **21** | **0** | 113.88 ms | 980.74 ms |
+
+**Xác minh dữ liệu End-to-End sau bài test:**
+- **Neon PostgreSQL (`orders` & `tickets`):** Ghi nhận đúng 1 đơn hàng `COMPLETED` (`bfdc9763-4ffa-4524-80ea-689d3187fe00`, `user_id = cloud-load-user-19`, `seat_id = A-01`, `1,200,000đ`).
+- **Amazon DynamoDB (`polyflash-prod-event-seats`):** Ghế `A-01` tự động đồng bộ sang trạng thái `SOLD` và gỡ bỏ TTL.
+
+---
+
+## 4. Ước tính Số User Hệ thống Chịu được
+
+Dựa trên hành vi thực tế của Frontend (polling sơ đồ ghế mỗi `2.5s` = `0.4 RPS/user`) và số liệu đo được trên AWS:
+
+### 4.1. Trên cấu hình AWS hiện tại (Account Quota = 10 Concurrent Lambdas)
+- **Tải trang tĩnh (CloudFront):** Phục vụ **hàng chục nghìn users** tải giao diện đồng thời (`297+ RPS` từ client đơn, 0% lỗi).
+- **Tương tác API đặt vé (`API Gateway + Lambda`):** Với `52 RPS` ổn định không lỗi ở mức 10 Lambda song song, hệ thống chịu được khoảng **~130 concurrent users** đang polling liên tục mỗi `2.5s` (hoặc **~500+ users** duyệt web không polling dồn dập).
+
+### 4.2. Trên Production chuẩn (Sau khi nâng Quota Lambda lên mặc định `1,000` Concurrent Executions)
+| Tầng hệ thống | Cấu hình Production | Năng lực xử lý ước tính | Số Concurrent Users ước tính |
+| :--- | :--- | :--- | :--- |
+| **Frontend (S3 + CloudFront)** | Edge Caching toàn cầu | Không giới hạn thực tế | **> 100,000+ users** |
+| **Đọc sơ đồ ghế (`seat-reader` + DynamoDB)** | `1,000` Concurrent Lambdas (~190ms/req cả mạng) | **~5,200 RPS** | **~13,000 users** polling liên tục mỗi `2.5s` |
+| **Giữ chỗ (`seat-locker` + SQS FIFO)** | SQS FIFO (`300 TPS` chuẩn / `3,000 TPS` batch) | **300 – 3,000 lượt giữ/giây** | Chống trùng tuyệt đối **0% overselling** |
+| **Chốt đơn ACID (`order-processor` + Neon DB)** | `maximum_concurrency = 15`, `batch_size = 10` | **~150 – 300 đơn/giây** | SQS FIFO đệm các đợt burst, không sập SQL |
+
+---
+
+## 5. Triển khai & Kiểm thử
+
+### 5.1. Bundle & Deploy Hạ tầng Terraform
 ```bash
+for svc in seat-reader seat-locker order-processor alert-forwarder; do
+  npm run bundle --prefix "services/$svc"
+done
+
+cd infra
+terraform init
+terraform apply
+```
+
+### 5.2. Chạy Migration & Unit Mock Tests
+```bash
+npm run migrate --prefix db
+npm run seed --prefix db
+
 npm test --prefix services/seat-reader
 npm test --prefix services/seat-locker
 npm test --prefix services/order-processor
-```
-
-### 2.3. Chạy Giả tải (Load Test)
-```bash
-node tests/load-test/flash-sale-bench.mjs
-```
-
----
-
-## 3. Kết quả Giả tải (Load Test) & Ước tính Sức chịu tải
-
-### 3.1. Kết quả đo thực tế trên Local Dev Server (`http://localhost:3000`)
-Kịch bản thực thi bằng [tests/load-test/flash-sale-bench.mjs](file:///home/ubuntu/dualcore-nosql-sql-ticketing/tests/load-test/flash-sale-bench.mjs) (mô phỏng in-memory trên 1 tiến trình Node.js đơn):
-
-#### A. Hiệu năng đọc sơ đồ ghế (`GET /api/v1/events/{id}/seats`)
-| Mức đồng thời (Concurrency) | Tổng Request | Throughput (RPS) | p50 Latency | p95 Latency | p99 Latency | Lỗi |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **50** | 1,000 | **1,149 req/s** | 30.76 ms | 80.68 ms | 99.77 ms | 0% |
-| **200** | 2,000 | **2,003 req/s** | 90.06 ms | 185.17 ms | 226.12 ms | 0% |
-| **500** | 3,000 | **3,148 req/s** | 133.95 ms | 289.14 ms | 355.94 ms | 0% |
-
-#### B. Kiểm thử tranh chấp Flash Sale (`200 users` cùng bấm giữ 1 ghế `A-02`)
-| Số User đồng thời | Thời gian hoàn tất | Giữ ghế thành công (`202`) | Bị từ chối (`409 Conflict`) | Lỗi 5XX / Overselling | p95 Latency | p99 Latency |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **200** | 120 ms | **1** | **199** | **0** | 98.10 ms | 98.39 ms |
-
-#### C. Lưu lượng hỗn hợp thực tế (`80%` duyệt sự kiện/xem ghế + `20%` giữ/nhả ghế trong 5 giây)
-| Mức đồng thời (Concurrency) | Tổng Request (5s) | Throughput (RPS) | p50 Latency | p95 Latency | p99 Latency | Lỗi |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **100** | 15,923 | **3,174 req/s** | 26.62 ms | 54.57 ms | 74.81 ms | 0% |
-| **300** | 17,521 | **3,486 req/s** | 75.97 ms | 131.16 ms | 163.80 ms | 0% |
-
----
-
-### 3.2. Ước tính số User hệ thống có thể chịu được
-
-#### 1) Trên môi trường Local (1 tiến trình Node.js đơn + Mock in-memory)
-- Theo thiết kế frontend, mỗi người dùng mở trang sơ đồ ghế thực hiện polling mỗi `2.5s` (**0.4 RPS/user**), kết hợp thao tác duyệt trang và giữ ghế trung bình khoảng **0.5 – 1.0 RPS/user** ở thời điểm cao điểm.
-- Với ngưỡng đo ổn định **~3,486 RPS** tại `p99 = 163.80 ms` (`0%` lỗi):
-  - **Số lượng Concurrent Active Users ước tính:** **~3,500 – 8,000 users** hoạt động đồng thời (lưu ý: môi trường local dùng dữ liệu in-memory nên không có độ trễ mạng tới DB thật).
-
-#### 2) Trên hạ tầng Cloud Production (AWS `ap-southeast-1` + Neon DB theo `infra/`)
-Dựa trên giới hạn của từng tầng dịch vụ đã khai báo trong Terraform:
-
-| Tầng hệ thống | Dịch vụ / Cấu hình (`infra/`) | Giới hạn kỹ thuật | Sức chịu tải ước tính |
-| :--- | :--- | :--- | :--- |
-| **Frontend & CDN** | Amazon S3 + CloudFront | Phân phối edge toàn cầu | **> 100,000+ users** tải trang tĩnh |
-| **Đọc sơ đồ ghế** | API Gateway + `seat-reader` + DynamoDB On-Demand | Lambda concurrency mặc định `1,000`, độ trễ DynamoDB ~10–30 ms | **~30,000+ RPS** (~**50,000 – 75,000 users** polling mỗi 2.5s) |
-| **Giữ chỗ Flash Sale** | `seat-locker` + Amazon SQS FIFO | SQS FIFO hỗ trợ **300 TPS** (tiêu chuẩn) hoặc **3,000 TPS** (high-throughput mode) | **300 – 3,000 lượt giữ ghế/giây** |
-| **Chốt đơn ACID** | `order-processor` (`reserved_concurrency = 15`, `batch_size = 10`) + Neon PgBouncer | Giới hạn 15 worker song song để bảo vệ pool kết nối Neon DB | **~150 – 300 đơn hàng/giây** (phần tăng đột biến được SQS FIFO đệm lại, không rơi đơn) |
-
-> **Kết luận:** Với kiến trúc hiện tại, hệ thống có thể phục vụ khoảng **50,000+ người dùng xem sự kiện/ghế đồng thời**, tiếp nhận **300 – 3,000 yêu cầu giữ chỗ/giây** qua SQS FIFO và xử lý chốt đơn ACID bền vững vào Neon PostgreSQL với **0% bán trùng vé**.
-
----
-
-## 4. Triển khai Hạ tầng (Terraform)
-
-```bash
-cd infra
-cp terraform.tfvars.example terraform.tfvars
-# Điền NEON_DATABASE_POOLED_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID...
-terraform init
-terraform plan
-terraform apply
 ```

@@ -20,3 +20,4 @@ dist/
 *.tfstate.*
 *.tfvars
 !terraform.tfvars.example
+bundle/

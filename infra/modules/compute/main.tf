@@ -53,10 +53,10 @@ variable "log_retention_days" {
 
 locals {
   services = {
-    seat-reader     = "${path.root}/../services/seat-reader/src"
-    seat-locker     = "${path.root}/../services/seat-locker/src"
-    order-processor = "${path.root}/../services/order-processor/src"
-    alert-forwarder = "${path.root}/../services/alert-forwarder/src"
+    seat-reader     = "${path.root}/../services/seat-reader/bundle"
+    seat-locker     = "${path.root}/../services/seat-locker/bundle"
+    order-processor = "${path.root}/../services/order-processor/bundle"
+    alert-forwarder = "${path.root}/../services/alert-forwarder/bundle"
   }
 }
 
@@ -238,15 +238,14 @@ resource "aws_lambda_function" "seat_locker" {
 }
 
 resource "aws_lambda_function" "order_processor" {
-  function_name                  = "${var.name_prefix}-order-processor"
-  role                           = aws_iam_role.lambda_roles["order-processor"].arn
-  runtime                        = "nodejs22.x"
-  handler                        = "index.handler"
-  filename                       = data.archive_file.lambda_zips["order-processor"].output_path
-  source_code_hash               = data.archive_file.lambda_zips["order-processor"].output_base64sha256
-  timeout                        = 30
-  memory_size                    = 512
-  reserved_concurrent_executions = var.order_processor_reserved_concurrency
+  function_name    = "${var.name_prefix}-order-processor"
+  role             = aws_iam_role.lambda_roles["order-processor"].arn
+  runtime          = "nodejs22.x"
+  handler          = "index.handler"
+  filename         = data.archive_file.lambda_zips["order-processor"].output_path
+  source_code_hash = data.archive_file.lambda_zips["order-processor"].output_base64sha256
+  timeout          = 30
+  memory_size      = 512
 
   tracing_config {
     mode = "Active"
@@ -267,6 +266,10 @@ resource "aws_lambda_event_source_mapping" "sqs_to_order_processor" {
   function_name           = aws_lambda_function.order_processor.arn
   batch_size              = 10
   function_response_types = ["ReportBatchItemFailures"]
+
+  scaling_config {
+    maximum_concurrency = var.order_processor_reserved_concurrency
+  }
 }
 
 resource "aws_lambda_function" "alert_forwarder" {
