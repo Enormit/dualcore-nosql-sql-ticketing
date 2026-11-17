@@ -22,8 +22,13 @@ module "auth" {
 }
 
 module "frontend" {
-  source      = "./modules/frontend"
-  name_prefix = local.name_prefix
+  source             = "./modules/frontend"
+  name_prefix        = local.name_prefix
+  custom_domain_name = var.custom_domain_name
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
 }
 
 module "compute" {

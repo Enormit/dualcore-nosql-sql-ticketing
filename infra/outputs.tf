@@ -57,3 +57,8 @@ output "cloudwatch_dashboard_url" {
   description = "AWS Console URL for PolyFlash CloudWatch Observability Dashboard"
   value       = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards/dashboard/${module.monitoring.cloudwatch_dashboard_name}"
 }
+
+output "custom_domain_url" {
+  description = "Custom HTTPS URL via Route 53 + CloudFront"
+  value       = var.custom_domain_name != "" ? "https://${var.custom_domain_name}" : null
+}

@@ -26,6 +26,7 @@ dualcore-nosql-sql-ticketing/
 
 ## 2. Hạ tầng Cloud Đang Vận Hành (AWS `ap-southeast-1` + Neon DB)
 
+- **Frontend Custom Domain (Route 53 + ACM HTTPS):** `https://enormitpham.me`
 - **Frontend CDN (CloudFront + S3):** `https://d13el8mejyicnc.cloudfront.net`
 - **API Gateway (HTTP API v2):** `https://sdz6xbd6l6.execute-api.ap-southeast-1.amazonaws.com`
 - **Cognito User Pool:** `ap-southeast-1_fmJ9lD11H`
@@ -93,6 +94,11 @@ Luồng đầy đủ: `API Gateway (JWT Authorizer) -> seat-locker Lambda -> Dyn
 Trong lúc chạy giả tải vượt giới hạn 10 concurrent Lambdas (tổng cộng `165 + 237 + 21 = 423` HTTP `503`), hệ thống giám sát đã tự động kích hoạt cảnh báo `polyflash-prod-api-5xx-errors` với đúng **`423.0` datapoints**, đẩy qua **Amazon SNS**, kích hoạt Lambda `alert-forwarder` (giải mã Token & Chat ID từ **SSM Parameter Store**) và bắn tin nhắn trực tiếp về **Telegram** lúc `13:06` (`06:06:45Z`):
 
 ![CloudWatch Alarm Telegram Alert](docs/assets/cloudwatch-telegram-alert.png)
+
+### 3.5. Bằng chứng CloudWatch Observability Dashboard (`polyflash-prod-observability`)
+Bảng điều khiển giám sát tập trung hiển thị trạng thái 4 CloudWatch Alarms, lưu lượng & lỗi 4XX/5XX tại API Gateway (`731` requests trong đợt test tải), độ trễ `p50/p95/p99` và các lượt thực thi / thời gian chạy Lambda:
+
+![CloudWatch Observability Dashboard](docs/assets/cloudwatch-dashboard.png)
 
 ---
 

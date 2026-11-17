@@ -83,3 +83,9 @@ variable "create_github_oidc_provider" {
   type        = bool
   default     = true
 }
+
+variable "custom_domain_name" {
+  description = "Custom Route53 domain name attached to CloudFront (leave empty to skip)"
+  type        = string
+  default     = "enormitpham.me"
+}
