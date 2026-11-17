@@ -2,6 +2,14 @@ variable "name_prefix" {
   type = string
 }
 
+variable "aws_region" {
+  type = string
+}
+
+variable "dynamodb_table_name" {
+  type = string
+}
+
 variable "order_queue_name" {
   type = string
 }
@@ -11,6 +19,18 @@ variable "order_dlq_name" {
 }
 
 variable "api_id" {
+  type = string
+}
+
+variable "seat_reader_name" {
+  type = string
+}
+
+variable "seat_locker_name" {
+  type = string
+}
+
+variable "order_processor_name" {
   type = string
 }
 
@@ -127,6 +147,148 @@ resource "aws_xray_sampling_rule" "baseline" {
   resource_arn   = "*"
 }
 
+# 6. CloudWatch Unified Operations Dashboard
+resource "aws_cloudwatch_dashboard" "polyflash" {
+  dashboard_name = "${var.name_prefix}-observability"
+
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type   = "alarm"
+        x      = 0
+        y      = 0
+        width  = 24
+        height = 3
+        properties = {
+          title = "PolyFlash Critical Alarms Status"
+          alarms = [
+            aws_cloudwatch_metric_alarm.dlq_not_empty.arn,
+            aws_cloudwatch_metric_alarm.sqs_oldest_message_age.arn,
+            aws_cloudwatch_metric_alarm.api_5xx_errors.arn,
+            aws_cloudwatch_metric_alarm.api_p99_latency.arn,
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 3
+        width  = 12
+        height = 6
+        properties = {
+          title  = "API Gateway - Traffic & Errors (4XX / 5XX)"
+          region = var.aws_region
+          stat   = "Sum"
+          period = 60
+          metrics = [
+            ["AWS/ApiGateway", "Count", "ApiId", var.api_id, { label = "Total Requests" }],
+            [".", "4xx", ".", ".", { label = "4XX (Incl. 409 Conflicts)", color = "#f59e0b" }],
+            [".", "5xx", ".", ".", { label = "5XX (Throttles / Errors)", color = "#ef4444" }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 3
+        width  = 12
+        height = 6
+        properties = {
+          title  = "API Gateway - Latency (p50 / p95 / p99 ms)"
+          region = var.aws_region
+          period = 60
+          metrics = [
+            ["AWS/ApiGateway", "Latency", "ApiId", var.api_id, { stat = "p50", label = "p50" }],
+            ["...", { stat = "p95", label = "p95" }],
+            ["...", { stat = "p99", label = "p99", color = "#ef4444" }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 9
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Lambda Invocations, Errors & Throttles"
+          region = var.aws_region
+          stat   = "Sum"
+          period = 60
+          metrics = [
+            ["AWS/Lambda", "Invocations", "FunctionName", var.seat_reader_name, { label = "seat-reader Invocations" }],
+            [".", "Invocations", ".", var.seat_locker_name, { label = "seat-locker Invocations" }],
+            [".", "Invocations", ".", var.order_processor_name, { label = "order-processor Invocations" }],
+            [".", "Throttles", ".", var.seat_reader_name, { label = "seat-reader Throttles", color = "#ef4444" }],
+            [".", "Throttles", ".", var.seat_locker_name, { label = "seat-locker Throttles", color = "#dc2626" }],
+            [".", "Errors", ".", var.order_processor_name, { label = "order-processor Errors", color = "#991b1b" }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 9
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Lambda Duration (p95 ms)"
+          region = var.aws_region
+          stat   = "p95"
+          period = 60
+          metrics = [
+            ["AWS/Lambda", "Duration", "FunctionName", var.seat_reader_name, { label = "seat-reader" }],
+            [".", "Duration", ".", var.seat_locker_name, { label = "seat-locker" }],
+            [".", "Duration", ".", var.order_processor_name, { label = "order-processor" }],
+            [".", "Duration", ".", var.alert_forwarder_name, { label = "alert-forwarder" }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 15
+        width  = 12
+        height = 6
+        properties = {
+          title  = "SQS FIFO Queue & DLQ Health"
+          region = var.aws_region
+          period = 60
+          metrics = [
+            ["AWS/SQS", "NumberOfMessagesSent", "QueueName", var.order_queue_name, { stat = "Sum", label = "Orders Queued" }],
+            [".", "ApproximateNumberOfMessagesVisible", ".", var.order_queue_name, { stat = "Maximum", label = "Queue Backlog" }],
+            [".", "ApproximateAgeOfOldestMessage", ".", var.order_queue_name, { stat = "Maximum", label = "Oldest Msg Age (s)" }],
+            [".", "ApproximateNumberOfMessagesVisible", ".", var.order_dlq_name, { stat = "Maximum", label = "DLQ Messages", color = "#ef4444" }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 15
+        width  = 12
+        height = 6
+        properties = {
+          title  = "DynamoDB EventSeats - Capacity & Flash Sale Conflicts"
+          region = var.aws_region
+          stat   = "Sum"
+          period = 60
+          metrics = [
+            ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", var.dynamodb_table_name, { label = "Read Capacity Units" }],
+            [".", "ConsumedWriteCapacityUnits", ".", ".", { label = "Write Capacity Units" }],
+            [".", "ConditionalCheckFailedRequests", ".", ".", { label = "Atomic Lock Conflicts Blocked", color = "#f59e0b" }],
+          ]
+        }
+      },
+    ]
+  })
+}
+
 output "sns_alerts_topic_arn" {
   value = aws_sns_topic.alerts.arn
 }
+
+output "cloudwatch_dashboard_name" {
+  value = aws_cloudwatch_dashboard.polyflash.dashboard_name
+}
+

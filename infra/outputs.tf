@@ -52,3 +52,8 @@ output "github_oidc_pr_plan_role_arn" {
   description = "Read-only IAM Role ARN for GitHub Pull Request terraform plan"
   value       = module.cicd.github_pr_plan_role_arn
 }
+
+output "cloudwatch_dashboard_url" {
+  description = "AWS Console URL for PolyFlash CloudWatch Observability Dashboard"
+  value       = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards/dashboard/${module.monitoring.cloudwatch_dashboard_name}"
+}

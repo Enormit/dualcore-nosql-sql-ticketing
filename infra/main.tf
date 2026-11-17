@@ -59,9 +59,14 @@ module "api" {
 module "monitoring" {
   source               = "./modules/monitoring"
   name_prefix          = local.name_prefix
+  aws_region           = var.aws_region
+  dynamodb_table_name  = module.storage.dynamodb_table_name
   order_queue_name     = module.messaging.order_queue_name
   order_dlq_name       = module.messaging.order_dlq_name
   api_id               = module.api.api_id
+  seat_reader_name     = module.compute.seat_reader_name
+  seat_locker_name     = module.compute.seat_locker_name
+  order_processor_name = module.compute.order_processor_name
   alert_forwarder_arn  = module.compute.alert_forwarder_arn
   alert_forwarder_name = module.compute.alert_forwarder_name
 }

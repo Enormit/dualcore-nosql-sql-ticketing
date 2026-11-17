@@ -31,6 +31,7 @@ dualcore-nosql-sql-ticketing/
 - **Cognito User Pool:** `ap-southeast-1_fmJ9lD11H`
 - **DynamoDB Table:** `polyflash-prod-event-seats`
 - **SQS FIFO Queue:** `polyflash-prod-order-queue.fifo`
+- **CloudWatch Observability Dashboard:** `https://ap-southeast-1.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-1#dashboards/dashboard/polyflash-prod-observability`
 
 ---
 
