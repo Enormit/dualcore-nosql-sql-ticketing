@@ -1,0 +1,116 @@
+name: PR Verification & Ephemeral Preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  security-and-tests:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run Lambda unit mock tests & TypeScript checks
+        run: |
+          for svc in seat-reader seat-locker order-processor; do
+            npm ci --prefix "services/$svc"
+            npm run build --prefix "services/$svc"
+            npm test --prefix "services/$svc"
+          done
+          for svc in alert-forwarder core-api; do
+            npm ci --prefix "services/$svc"
+            npm run build --prefix "services/$svc"
+          done
+
+      - name: Checkov Terraform security scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra
+          framework: terraform
+          soft_fail: true
+
+  neon-branch-and-terraform-plan:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test SQL Migrations on Ephemeral Neon DB Branch
+        if: ${{ secrets.NEON_API_KEY != '' && vars.NEON_PROJECT_ID != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          PR_BRANCH: pr-${{ github.event.pull_request.number }}
+        run: |
+          npx --yes neonctl@latest branches delete "$PR_BRANCH" --project-id "$NEON_PROJECT_ID" || true
+          npx --yes neonctl@latest branches create --name "$PR_BRANCH" --project-id "$NEON_PROJECT_ID"
+          DIRECT_URL=$(npx --yes neonctl@latest connection-string "$PR_BRANCH" --project-id "$NEON_PROJECT_ID" --role-name neondb_owner)
+          npm ci --prefix db
+          NEON_DATABASE_DIRECT_URL="$DIRECT_URL" npm run migrate --prefix db
+
+      - name: Bundle Lambdas for Terraform archive_file
+        run: |
+          for svc in seat-reader seat-locker order-processor alert-forwarder core-api; do
+            npm ci --prefix "services/$svc"
+            npx --yes esbuild "services/$svc/src/index.ts" --bundle --platform=node --target=node22 --format=cjs --outfile="services/$svc/bundle/index.js"
+          done
+
+      - name: Configure AWS Credentials via OIDC (Read-Only PR Role)
+        if: ${{ secrets.AWS_OIDC_PR_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_PR_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.2'
+
+      - name: Terraform Format, Init & Validate
+        working-directory: infra
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+
+  cleanup-ephemeral-neon-branch:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Delete Ephemeral Neon DB Branch
+        if: ${{ secrets.NEON_API_KEY != '' && vars.NEON_PROJECT_ID != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          PR_BRANCH: pr-${{ github.event.pull_request.number }}
+        run: |
+          npx --yes neonctl@latest branches delete "$PR_BRANCH" --project-id "$NEON_PROJECT_ID" || true

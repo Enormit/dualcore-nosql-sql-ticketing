@@ -1,0 +1,87 @@
+name: Application & Database Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/**'
+      - 'db/**'
+      - 'frontend/**'
+      - '.github/workflows/app-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: polyflash-app-prod
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run Neon PostgreSQL Migrations (Direct URL)
+        env:
+          NEON_DATABASE_DIRECT_URL: ${{ secrets.NEON_DATABASE_DIRECT_URL }}
+        run: |
+          npm ci --prefix db
+          npm run migrate --prefix db
+
+      - name: Test & Bundle Lambda Microservices
+        run: |
+          for svc in seat-reader seat-locker order-processor; do
+            npm ci --prefix "services/$svc"
+            npm run build --prefix "services/$svc"
+            npm test --prefix "services/$svc"
+          done
+          for svc in alert-forwarder core-api; do
+            npm ci --prefix "services/$svc"
+            npm run build --prefix "services/$svc"
+          done
+          for svc in seat-reader seat-locker order-processor alert-forwarder core-api; do
+            npx --yes esbuild "services/$svc/src/index.ts" --bundle --platform=node --target=node22 --format=cjs --outfile="services/$svc/bundle/index.js"
+            (cd "services/$svc/bundle" && zip -qr "../function.zip" index.js)
+          done
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+
+      - name: Update AWS Lambda Functions
+        run: |
+          for svc in seat-reader seat-locker order-processor alert-forwarder core-api; do
+            aws lambda update-function-code \
+              --function-name "polyflash-prod-$svc" \
+              --zip-file "fileb://services/$svc/function.zip" \
+              --no-cli-pager
+          done
+
+      - name: Deploy Static Frontend to S3 & Invalidate CloudFront
+        if: ${{ vars.FRONTEND_S3_BUCKET != '' }}
+        run: |
+          aws s3 sync frontend/ "s3://${{ vars.FRONTEND_S3_BUCKET }}/" --delete
+          if [ -n "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+            aws cloudfront create-invalidation \
+              --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+              --paths "/*"
+          fi
+
+      - name: Post-Deploy Smoke Test
+        if: ${{ vars.API_ENDPOINT != '' }}
+        run: |
+          curl -sf "${{ vars.API_ENDPOINT }}/api/v1/events" | grep -q "events"
+          curl -sf "${{ vars.API_ENDPOINT }}/api/v1/events/11111111-1111-1111-1111-111111111111/seats" | grep -q "seats"
+          echo "✅ Smoke tests passed!"

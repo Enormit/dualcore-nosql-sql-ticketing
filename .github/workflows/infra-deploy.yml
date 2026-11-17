@@ -1,0 +1,60 @@
+name: Infrastructure Deploy (Terraform)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform-apply:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: polyflash-infra-prod
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Bundle Lambda Artifacts
+        run: |
+          for svc in seat-reader seat-locker order-processor alert-forwarder core-api; do
+            npm ci --prefix "services/$svc"
+            npx --yes esbuild "services/$svc/src/index.ts" --bundle --platform=node --target=node22 --format=cjs --outfile="services/$svc/bundle/index.js"
+          done
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.2'
+
+      - name: Terraform Init & Apply
+        working-directory: infra
+        env:
+          TF_VAR_neon_database_pooled_url: ${{ secrets.NEON_DATABASE_POOLED_URL }}
+          TF_VAR_neon_database_direct_url: ${{ secrets.NEON_DATABASE_DIRECT_URL }}
+          TF_VAR_telegram_bot_token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TF_VAR_telegram_chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          terraform init
+          terraform validate
+          terraform apply -auto-approve -no-color

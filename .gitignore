@@ -21,3 +21,4 @@ dist/
 *.tfvars
 !terraform.tfvars.example
 bundle/
+function.zip
