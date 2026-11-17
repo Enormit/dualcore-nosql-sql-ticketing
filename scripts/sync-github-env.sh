@@ -4,70 +4,125 @@ set -euo pipefail
 REPO="Enormit/dualcore-nosql-sql-ticketing"
 ENV_NAME="production"
 
-if ! command -v gh >/dev/null 2>&1; then
-  echo "❌ Chưa cài GitHub CLI (gh). Cài nhanh bằng: sudo apt update && sudo apt install -y gh"
+# Load GH_TOKEN from .env if not already exported
+if [ -z "${GH_TOKEN:-}" ] && [ -z "${GITHUB_TOKEN:-}" ] && [ -f .env ]; then
+  GH_TOKEN=$(node -e '
+    const fs = require("fs");
+    for (const line of fs.readFileSync(".env", "utf8").split(/\r?\n/)) {
+      const m = line.match(/^(?:GH_TOKEN|GITHUB_TOKEN)=(.*)$/);
+      if (m) { console.log(m[1].trim()); break; }
+    }
+  ')
+fi
+
+TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+if [ -z "$TOKEN" ]; then
+  echo "❌ Thiếu GH_TOKEN (hoặc GITHUB_TOKEN). Hãy chạy:"
+  echo '   GH_TOKEN="github_pat_..." ./scripts/sync-github-env.sh'
   exit 1
 fi
 
-if ! gh auth status >/dev/null 2>&1; then
-  echo "❌ Chưa đăng nhập GitHub CLI. Hãy chạy: gh auth login"
-  exit 1
+# Ensure libsodium-wrappers is available in /tmp for encrypting GitHub secrets without needing gh CLI
+SODIUM_DIR="/tmp/polyflash-gh-sync"
+if [ ! -d "$SODIUM_DIR/node_modules/libsodium-wrappers" ]; then
+  echo "📦 Cài đặt libsodium-wrappers tạm thời vào $SODIUM_DIR..."
+  mkdir -p "$SODIUM_DIR"
+  npm install --prefix "$SODIUM_DIR" --no-save libsodium-wrappers >/dev/null 2>&1
 fi
 
-echo "1️⃣  Đảm bảo Environment '$ENV_NAME' tồn tại trên GitHub..."
-gh api -X PUT "repos/${REPO}/environments/${ENV_NAME}" >/dev/null
+export GH_TOKEN="$TOKEN"
+export REPO ENV_NAME SODIUM_DIR
 
-echo "2️⃣  Đọc secrets từ .env và outputs từ Terraform..."
-eval "$(node -e '
+node -e '
 const fs = require("fs");
 const { execSync } = require("child_process");
+const sodium = require(`${process.env.SODIUM_DIR}/node_modules/libsodium-wrappers`);
 
-const envMap = {};
-for (const line of fs.readFileSync(".env", "utf8").split(/\r?\n/)) {
-  const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-  if (m) envMap[m[1]] = m[2].trim();
-}
+const REPO = process.env.REPO;
+const ENV_NAME = process.env.ENV_NAME;
+const TOKEN = process.env.GH_TOKEN;
 
-const tfOut = JSON.parse(execSync("terraform -chdir=infra output -json", { encoding: "utf8" }));
-const val = (k) => (tfOut[k] && tfOut[k].value) || "";
-
-const vars = {
-  NEON_DIRECT: envMap.NEON_DATABASE_DIRECT_URL || "",
-  NEON_POOLED: envMap.NEON_DATABASE_POOLED_URL || "",
-  TG_TOKEN: envMap.TELEGRAM_BOT_TOKEN || "",
-  TG_CHAT: envMap.TELEGRAM_CHAT_ID || "",
-  NEON_API_KEY: envMap.NEON_API_KEY || "",
-  NEON_PROJECT_ID: envMap.NEON_PROJECT_ID || "",
-  OIDC_DEPLOY_ROLE: val("github_oidc_deploy_role_arn"),
-  OIDC_PR_ROLE: val("github_oidc_pr_plan_role_arn"),
-  S3_BUCKET: val("frontend_s3_bucket"),
-  API_ENDPOINT: val("api_endpoint"),
-  CF_ID: "E2QO6PS7GCEO7S",
+const headers = {
+  Authorization: `Bearer ${TOKEN}`,
+  Accept: "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+  "Content-Type": "application/json",
 };
 
-for (const [k, v] of Object.entries(vars)) {
-  console.log(`${k}=${JSON.stringify(v)}`);
+async function ghReq(method, path, body) {
+  const res = await fetch(`https://api.github.com${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`GitHub API ${method} ${path} failed (${res.status}): ${text}`);
+  }
+  return text ? JSON.parse(text) : null;
 }
-')"
 
-echo "3️⃣  Đang đẩy Secrets lên Environment '$ENV_NAME'..."
-printf "%s" "$OIDC_DEPLOY_ROLE" | gh secret set AWS_OIDC_DEPLOY_ROLE_ARN --repo "$REPO" --env "$ENV_NAME"
-printf "%s" "$OIDC_PR_ROLE"     | gh secret set AWS_OIDC_PR_ROLE_ARN     --repo "$REPO" --env "$ENV_NAME"
-printf "%s" "$NEON_DIRECT"      | gh secret set NEON_DATABASE_DIRECT_URL --repo "$REPO" --env "$ENV_NAME"
-printf "%s" "$NEON_POOLED"      | gh secret set NEON_DATABASE_POOLED_URL --repo "$REPO" --env "$ENV_NAME"
-printf "%s" "$TG_TOKEN"         | gh secret set TELEGRAM_BOT_TOKEN       --repo "$REPO" --env "$ENV_NAME"
-printf "%s" "$TG_CHAT"          | gh secret set TELEGRAM_CHAT_ID         --repo "$REPO" --env "$ENV_NAME"
-if [ -n "$NEON_API_KEY" ]; then
-  printf "%s" "$NEON_API_KEY"   | gh secret set NEON_API_KEY             --repo "$REPO" --env "$ENV_NAME"
-fi
+(async () => {
+  await sodium.ready;
 
-echo "4️⃣  Đang đẩy Variables lên Environment '$ENV_NAME'..."
-gh variable set AWS_REGION                 --body "ap-southeast-1" --repo "$REPO" --env "$ENV_NAME"
-gh variable set FRONTEND_S3_BUCKET         --body "$S3_BUCKET"      --repo "$REPO" --env "$ENV_NAME"
-gh variable set CLOUDFRONT_DISTRIBUTION_ID --body "$CF_ID"          --repo "$REPO" --env "$ENV_NAME"
-gh variable set API_ENDPOINT               --body "$API_ENDPOINT"   --repo "$REPO" --env "$ENV_NAME"
-if [ -n "$NEON_PROJECT_ID" ]; then
-  gh variable set NEON_PROJECT_ID          --body "$NEON_PROJECT_ID" --repo "$REPO" --env "$ENV_NAME"
-fi
+  // 1. Ensure environment exists
+  await ghReq("PUT", `/repos/${REPO}/environments/${ENV_NAME}`);
+  console.log(`✅ Environment "${ENV_NAME}" ready.`);
 
-echo "✅ Hoàn tất đồng bộ Secrets & Variables lên GitHub Environment '$ENV_NAME'!"
+  // 2. Read .env & Terraform outputs
+  const envMap = {};
+  for (const line of fs.readFileSync(".env", "utf8").split(/\r?\n/)) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m) envMap[m[1]] = m[2].trim();
+  }
+  const tfOut = JSON.parse(execSync("terraform -chdir=infra output -json", { encoding: "utf8" }));
+  const val = (k) => (tfOut[k] && tfOut[k].value) || "";
+
+  const secrets = {
+    AWS_OIDC_DEPLOY_ROLE_ARN: val("github_oidc_deploy_role_arn"),
+    AWS_OIDC_PR_ROLE_ARN: val("github_oidc_pr_plan_role_arn"),
+    NEON_DATABASE_DIRECT_URL: envMap.NEON_DATABASE_DIRECT_URL || "",
+    NEON_DATABASE_POOLED_URL: envMap.NEON_DATABASE_POOLED_URL || "",
+    TELEGRAM_BOT_TOKEN: envMap.TELEGRAM_BOT_TOKEN || "",
+    TELEGRAM_CHAT_ID: envMap.TELEGRAM_CHAT_ID || "",
+    NEON_API_KEY: envMap.NEON_API_KEY || "",
+  };
+
+  const variables = {
+    AWS_REGION: "ap-southeast-1",
+    FRONTEND_S3_BUCKET: val("frontend_s3_bucket"),
+    CLOUDFRONT_DISTRIBUTION_ID: "E2QO6PS7GCEO7S",
+    API_ENDPOINT: val("api_endpoint"),
+    NEON_PROJECT_ID: envMap.NEON_PROJECT_ID || "",
+  };
+
+  // 3. Get environment public key for secret encryption
+  const pubKey = await ghReq("GET", `/repos/${REPO}/environments/${ENV_NAME}/secrets/public-key`);
+  const binkey = sodium.from_base64(pubKey.key, sodium.base64_variants.ORIGINAL);
+
+  for (const [name, value] of Object.entries(secrets)) {
+    if (!value) continue;
+    const binsec = sodium.from_string(value);
+    const encBytes = sodium.crypto_box_seal(binsec, binkey);
+    const encrypted_value = sodium.to_base64(encBytes, sodium.base64_variants.ORIGINAL);
+    await ghReq("PUT", `/repos/${REPO}/environments/${ENV_NAME}/secrets/${name}`, {
+      encrypted_value,
+      key_id: pubKey.key_id,
+    });
+    console.log(`🔐 Secret synced: ${name}`);
+  }
+
+  // 4. Upsert variables
+  for (const [name, value] of Object.entries(variables)) {
+    if (!value) continue;
+    try {
+      await ghReq("POST", `/repos/${REPO}/environments/${ENV_NAME}/variables`, { name, value });
+    } catch {
+      await ghReq("PATCH", `/repos/${REPO}/environments/${ENV_NAME}/variables/${name}`, { name, value });
+    }
+    console.log(`⚙️  Variable synced: ${name} = ${value}`);
+  }
+
+  console.log(`🎉 Hoàn tất đồng bộ toàn bộ Secrets & Variables lên GitHub Environment "${ENV_NAME}"!`);
+})();
+'
