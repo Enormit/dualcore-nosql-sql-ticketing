@@ -33,7 +33,8 @@ variable "lambda_function_arns" {
 }
 
 locals {
-  full_repo = "${var.github_owner}/${var.github_repo}"
+  full_repo     = "${var.github_owner}/${var.github_repo}"
+  full_repo_uid = "Enormit@179368016/dualcore-nosql-sql-ticketing@1460191060"
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -75,6 +76,8 @@ data "aws_iam_policy_document" "github_deploy_trust" {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
+        "repo:${local.full_repo_uid}:environment:production",
+        "repo:${local.full_repo_uid}:ref:refs/heads/${var.deploy_branch}",
         "repo:${local.full_repo}:environment:production",
         "repo:${local.full_repo}:ref:refs/heads/${var.deploy_branch}",
       ]
@@ -143,6 +146,8 @@ data "aws_iam_policy_document" "github_pr_trust" {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
+        "repo:${local.full_repo_uid}:pull_request",
+        "repo:${local.full_repo_uid}:environment:production",
         "repo:${local.full_repo}:pull_request",
         "repo:${local.full_repo}:environment:production",
       ]
