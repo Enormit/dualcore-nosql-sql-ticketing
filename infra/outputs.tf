@@ -37,3 +37,18 @@ output "sns_alerts_topic_arn" {
   description = "SNS Topic ARN for CloudWatch alerts"
   value       = module.monitoring.sns_alerts_topic_arn
 }
+
+output "github_oidc_provider_arn" {
+  description = "GitHub Actions OIDC Provider ARN"
+  value       = module.cicd.oidc_provider_arn
+}
+
+output "github_oidc_deploy_role_arn" {
+  description = "IAM Role ARN for GitHub Actions deployments (locked to 1 owner + 1 repo + main branch)"
+  value       = module.cicd.github_deploy_role_arn
+}
+
+output "github_oidc_pr_plan_role_arn" {
+  description = "Read-only IAM Role ARN for GitHub Pull Request terraform plan"
+  value       = module.cicd.github_pr_plan_role_arn
+}

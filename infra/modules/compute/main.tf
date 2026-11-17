@@ -307,6 +307,10 @@ output "seat_locker_name" {
   value = aws_lambda_function.seat_locker.function_name
 }
 
+output "order_processor_arn" {
+  value = aws_lambda_function.order_processor.arn
+}
+
 output "order_processor_name" {
   value = aws_lambda_function.order_processor.function_name
 }

@@ -65,3 +65,19 @@ module "monitoring" {
   alert_forwarder_arn  = module.compute.alert_forwarder_arn
   alert_forwarder_name = module.compute.alert_forwarder_name
 }
+
+module "cicd" {
+  source                 = "./modules/cicd"
+  name_prefix            = local.name_prefix
+  github_owner           = var.github_owner
+  github_repo            = var.github_repo
+  deploy_branch          = var.github_deploy_branch
+  create_oidc_provider   = var.create_github_oidc_provider
+  frontend_s3_bucket_arn = module.frontend.s3_bucket_arn
+  lambda_function_arns = [
+    module.compute.seat_reader_arn,
+    module.compute.seat_locker_arn,
+    module.compute.order_processor_arn,
+    module.compute.alert_forwarder_arn,
+  ]
+}

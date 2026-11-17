@@ -59,3 +59,27 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "github_owner" {
+  description = "GitHub account/organization allowed to assume OIDC role"
+  type        = string
+  default     = "Enormit"
+}
+
+variable "github_repo" {
+  description = "Exact GitHub repository name allowed to assume OIDC role"
+  type        = string
+  default     = "dualcore-nosql-sql-ticketing"
+}
+
+variable "github_deploy_branch" {
+  description = "Git branch allowed to perform deployments via OIDC"
+  type        = string
+  default     = "main"
+}
+
+variable "create_github_oidc_provider" {
+  description = "Create GitHub OIDC identity provider (set false if already exists in AWS account)"
+  type        = bool
+  default     = true
+}

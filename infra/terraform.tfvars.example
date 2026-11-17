@@ -8,3 +8,7 @@ telegram_chat_id                     = "your_telegram_chat_id"
 seat_hold_ttl_seconds                = 300
 order_processor_reserved_concurrency = 15
 log_retention_days                   = 14
+github_owner                         = "Enormit"
+github_repo                          = "dualcore-nosql-sql-ticketing"
+github_deploy_branch                 = "main"
+create_github_oidc_provider          = true
