@@ -86,7 +86,10 @@ data "aws_iam_policy_document" "github_deploy_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${local.full_repo}:ref:refs/heads/${var.deploy_branch}"]
+      values = [
+        "repo:${local.full_repo}:environment:production",
+        "repo:${local.full_repo}:ref:refs/heads/${var.deploy_branch}",
+      ]
     }
   }
 }
@@ -163,7 +166,10 @@ data "aws_iam_policy_document" "github_pr_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${local.full_repo}:pull_request"]
+      values = [
+        "repo:${local.full_repo}:pull_request",
+        "repo:${local.full_repo}:environment:production",
+      ]
     }
   }
 }

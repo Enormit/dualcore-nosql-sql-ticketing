@@ -12,14 +12,13 @@ terraform {
     }
   }
 
-  # Uncomment when S3 state bucket and DynamoDB lock table are provisioned
-  # backend "s3" {
-  #   bucket         = "polyflash-terraform-state"
-  #   key            = "prod/terraform.tfstate"
-  #   region         = "ap-southeast-1"
-  #   dynamodb_table = "polyflash-terraform-locks"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "polyflash-terraform-state-755272426779"
+    key            = "prod/terraform.tfstate"
+    region         = "ap-southeast-1"
+    dynamodb_table = "polyflash-terraform-locks"
+    encrypt        = true
+  }
 }
 
 provider "aws" {

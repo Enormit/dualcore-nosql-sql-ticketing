@@ -63,12 +63,15 @@ jobs:
           node-version: '22'
 
       - name: Test SQL Migrations on Ephemeral Neon DB Branch
-        if: ${{ secrets.NEON_API_KEY != '' && vars.NEON_PROJECT_ID != '' }}
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
           PR_BRANCH: pr-${{ github.event.pull_request.number }}
         run: |
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            echo "Skipping ephemeral Neon DB branch test (NEON_API_KEY or NEON_PROJECT_ID not set)."
+            exit 0
+          fi
           npx --yes neonctl@latest branches delete "$PR_BRANCH" --project-id "$NEON_PROJECT_ID" || true
           npx --yes neonctl@latest branches create --name "$PR_BRANCH" --project-id "$NEON_PROJECT_ID"
           DIRECT_URL=$(npx --yes neonctl@latest connection-string "$PR_BRANCH" --project-id "$NEON_PROJECT_ID" --role-name neondb_owner)
@@ -83,7 +86,6 @@ jobs:
           done
 
       - name: Configure AWS Credentials via OIDC (Read-Only PR Role)
-        if: ${{ secrets.AWS_OIDC_PR_ROLE_ARN != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_PR_ROLE_ARN }}
@@ -107,10 +109,11 @@ jobs:
     environment: production
     steps:
       - name: Delete Ephemeral Neon DB Branch
-        if: ${{ secrets.NEON_API_KEY != '' && vars.NEON_PROJECT_ID != '' }}
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
           PR_BRANCH: pr-${{ github.event.pull_request.number }}
         run: |
-          npx --yes neonctl@latest branches delete "$PR_BRANCH" --project-id "$NEON_PROJECT_ID" || true
+          if [ -n "$NEON_API_KEY" ] && [ -n "$NEON_PROJECT_ID" ]; then
+            npx --yes neonctl@latest branches delete "$PR_BRANCH" --project-id "$NEON_PROJECT_ID" || true
+          fi
